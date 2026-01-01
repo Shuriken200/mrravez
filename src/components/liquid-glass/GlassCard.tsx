@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { GlassProvider } from "./GlassContext";
 import "@/lib/liquid-glass/glass.css";
 
@@ -69,18 +70,66 @@ export function GlassCard({
             containerRef.current = instance;
 
             if (instance.element) {
-                // Apply styles
-                if (style) {
-                    Object.assign(instance.element.style, style);
-                }
-                if (className) {
-                    className.split(' ').forEach(cls => {
-                        if (cls) instance.element?.classList.add(cls);
-                    });
-                }
+                // Ensure full width in wrapper
+                instance.element.style.width = '100%';
+
+                // CRITICAL: Glass element background should NOT capture pointers effectively
+                // But we need it to be visible. Children (content) need 'auto'.
+                instance.element.style.pointerEvents = 'none';
+
+                // 3D Tilt Logic
+                const handleMove = (e: MouseEvent) => {
+                    if (!containerRef.current || !mountRef.current) return;
+
+                    const rect = mountRef.current.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+
+                    const mouseX = e.clientX - centerX;
+                    const mouseY = e.clientY - centerY;
+
+                    // Max tilt (degrees)
+                    const maxTilt = 3;
+
+                    // X rotation (tilting up/down) depends on Y distance
+                    const rotateX = (mouseY / (rect.height / 2)) * -maxTilt;
+
+                    // Y rotation (tilting left/right) depends on X distance
+                    const rotateY = (mouseX / (rect.width / 2)) * maxTilt;
+
+                    if (instance.element) {
+                        instance.element.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`;
+                        instance.element.style.transition = 'transform 0.1s ease-out';
+                    }
+                };
+
+                const handleLeave = () => {
+                    if (instance.element) {
+                        instance.element.style.transform = `rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+                        instance.element.style.transition = 'transform 0.5s ease-out';
+                    }
+                };
+
+                const handleEnter = () => {
+                    if (instance.element) {
+                        instance.element.style.transition = 'transform 0.1s ease-out';
+                    }
+                };
+
+                const wrapper = mountRef.current;
+                wrapper.addEventListener('mousemove', handleMove);
+                wrapper.addEventListener('mouseleave', handleLeave);
+                wrapper.addEventListener('mouseenter', handleEnter);
+
+                (instance as any)._cleanupListeners = () => {
+                    wrapper.removeEventListener('mousemove', handleMove);
+                    wrapper.removeEventListener('mouseleave', handleLeave);
+                    wrapper.removeEventListener('mouseenter', handleEnter);
+                };
 
                 // Default flex column layout for children
                 instance.element.style.flexDirection = 'column';
+                instance.element.style.transformStyle = 'preserve-3d'; // Enable 3D space for children levitation
 
                 mountRef.current.appendChild(instance.element);
                 setIsReady(true);
@@ -91,8 +140,13 @@ export function GlassCard({
 
         return () => {
             mounted = false;
-            if (containerRef.current?.element?.parentNode) {
-                containerRef.current.element.parentNode.removeChild(containerRef.current.element);
+            if (containerRef.current) {
+                if ((containerRef.current as any)._cleanupListeners) {
+                    (containerRef.current as any)._cleanupListeners();
+                }
+                if (containerRef.current.element?.parentNode) {
+                    containerRef.current.element.parentNode.removeChild(containerRef.current.element);
+                }
             }
             containerRef.current = null;
         };
@@ -106,7 +160,16 @@ export function GlassCard({
     }, [style]);
 
     return (
-        <div ref={mountRef} style={{ display: 'contents' }}>
+        <div
+            ref={mountRef}
+            className={className}
+            style={{
+                position: 'relative',
+                perspective: '1200px',
+                transformStyle: 'preserve-3d',
+                ...style
+            }}
+        >
             {isReady && (
                 <GlassProvider container={containerRef.current}>
                     <GlassCardContent container={containerRef.current}>
@@ -117,9 +180,6 @@ export function GlassCard({
         </div>
     );
 }
-
-// Render children into the container's element
-import { createPortal } from "react-dom";
 
 function GlassCardContent({ container, children }: { container: any; children: ReactNode }) {
     const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
@@ -134,6 +194,13 @@ function GlassCardContent({ container, children }: { container: any; children: R
         div.style.display = 'flex';
         div.style.flexDirection = 'column';
         div.style.gap = '16px';
+
+        // CRITICAL: Re-enable pointer events for the content so buttons inside work.
+        // The parent (glass element) has pointer-events: none.
+        div.style.pointerEvents = 'auto';
+
+        // Levitate content subtly (10px) to ensure it catches clicks without visual distortion
+        div.style.transform = 'translateZ(10px)';
 
         container.element.appendChild(div);
         setContentEl(div);

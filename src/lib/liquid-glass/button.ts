@@ -2,199 +2,199 @@ import Container from './container';
 import type { ButtonOptions, WebGLRefs } from './types';
 
 class Button extends Container {
-    text: string;
-    fontSize: number;
-    onClick: ((text: string) => void) | null;
-    textElement: HTMLDivElement | null = null;
+  text: string;
+  fontSize: number;
+  onClick: ((text: string) => void) | null;
+  textElement: HTMLDivElement | null = null;
 
-    constructor(options: ButtonOptions = {}) {
-        const text = options.text ?? 'Button';
-        const fontSize = typeof options.size === 'number' ? options.size : 48;
-        const onClick = options.onClick ?? null;
-        const type = options.type ?? 'rounded';
-        const warp = options.warp ?? false;
-        const tintOpacity = options.tintOpacity ?? 0.2;
+  constructor(options: ButtonOptions = {}) {
+    const text = options.text ?? 'Button';
+    const fontSize = typeof options.size === 'number' ? options.size : 48;
+    const onClick = options.onClick ?? null;
+    const type = options.type ?? 'rounded';
+    const warp = options.warp ?? false;
+    const tintOpacity = options.tintOpacity ?? 0.2;
 
-        super({
-            borderRadius: fontSize,
-            type: type,
-            tintOpacity: tintOpacity
-        });
+    super({
+      borderRadius: fontSize,
+      type: type,
+      tintOpacity: tintOpacity
+    });
 
-        this.text = text;
-        this.fontSize = fontSize;
-        this.onClick = onClick;
-        this.type = type;
-        this.warp = warp;
-        this.parent = undefined;
-        this.isNestedGlass = false;
+    this.text = text;
+    this.fontSize = fontSize;
+    this.onClick = onClick;
+    this.type = type;
+    this.warp = warp;
+    this.parent = undefined;
+    this.isNestedGlass = false;
 
-        this.element?.classList.add('glass-button');
-        if (this.type === 'circle') {
-            this.element?.classList.add('glass-button-circle');
-        }
-        this.createTextElement();
-        this.setupClickHandler();
-        this.setSizeFromText();
+    this.element?.classList.add('glass-button');
+    if (this.type === 'circle') {
+      this.element?.classList.add('glass-button-circle');
+    }
+    this.createTextElement();
+    this.setupClickHandler();
+    this.setSizeFromText();
+  }
+
+  private setSizeFromText(): void {
+    let width: number;
+    let height: number;
+
+    if (this.type === 'circle') {
+      const circleSize = this.fontSize * 2.5;
+      width = circleSize;
+      height = circleSize;
+      this.borderRadius = circleSize / 2;
+
+      if (this.element) {
+        this.element.style.width = width + 'px';
+        this.element.style.height = height + 'px';
+        this.element.style.minWidth = width + 'px';
+        this.element.style.minHeight = height + 'px';
+        this.element.style.maxWidth = width + 'px';
+        this.element.style.maxHeight = height + 'px';
+      }
+    } else if (this.type === 'pill') {
+      const textMetrics = Button.measureText(this.text, this.fontSize);
+      width = Math.ceil(textMetrics.width + this.fontSize * 2);
+      height = Math.ceil(this.fontSize + this.fontSize * 1.2);
+      this.borderRadius = height / 2;
+      if (this.element) {
+        this.element.style.minWidth = width + 'px';
+        this.element.style.minHeight = height + 'px';
+      }
+    } else {
+      const textMetrics = Button.measureText(this.text, this.fontSize);
+      width = Math.ceil(textMetrics.width + this.fontSize * 2);
+      height = Math.ceil(this.fontSize + this.fontSize * 1.5);
+      this.borderRadius = this.fontSize;
+      if (this.element) {
+        this.element.style.minWidth = width + 'px';
+        this.element.style.minHeight = height + 'px';
+      }
     }
 
-    private setSizeFromText(): void {
-        let width: number;
-        let height: number;
-
-        if (this.type === 'circle') {
-            const circleSize = this.fontSize * 2.5;
-            width = circleSize;
-            height = circleSize;
-            this.borderRadius = circleSize / 2;
-
-            if (this.element) {
-                this.element.style.width = width + 'px';
-                this.element.style.height = height + 'px';
-                this.element.style.minWidth = width + 'px';
-                this.element.style.minHeight = height + 'px';
-                this.element.style.maxWidth = width + 'px';
-                this.element.style.maxHeight = height + 'px';
-            }
-        } else if (this.type === 'pill') {
-            const textMetrics = Button.measureText(this.text, this.fontSize);
-            width = Math.ceil(textMetrics.width + this.fontSize * 2);
-            height = Math.ceil(this.fontSize + this.fontSize * 1.2);
-            this.borderRadius = height / 2;
-            if (this.element) {
-                this.element.style.minWidth = width + 'px';
-                this.element.style.minHeight = height + 'px';
-            }
-        } else {
-            const textMetrics = Button.measureText(this.text, this.fontSize);
-            width = Math.ceil(textMetrics.width + this.fontSize * 2);
-            height = Math.ceil(this.fontSize + this.fontSize * 1.5);
-            this.borderRadius = this.fontSize;
-            if (this.element) {
-                this.element.style.minWidth = width + 'px';
-                this.element.style.minHeight = height + 'px';
-            }
-        }
-
-        if (this.element) {
-            this.element.style.borderRadius = this.borderRadius + 'px';
-        }
-
-        if (this.canvas) {
-            this.canvas.style.borderRadius = this.borderRadius + 'px';
-        }
-
-        if (this.type === 'circle') {
-            this.width = width;
-            this.height = height;
-
-            if (this.canvas) {
-                this.canvas.width = width;
-                this.canvas.height = height;
-                this.canvas.style.width = width + 'px';
-                this.canvas.style.height = height + 'px';
-
-                if (this.gl_refs.gl) {
-                    this.gl_refs.gl.viewport(0, 0, width, height);
-                    if (this.gl_refs.resolutionLoc) {
-                        this.gl_refs.gl.uniform2f(this.gl_refs.resolutionLoc, width, height);
-                    }
-                    if (this.gl_refs.borderRadiusLoc) {
-                        this.gl_refs.gl.uniform1f(this.gl_refs.borderRadiusLoc, this.borderRadius);
-                    }
-                }
-            }
-        } else if (this.type === 'pill') {
-            this.width = width;
-            this.height = height;
-
-            if (this.element) {
-                this.element.style.width = width + 'px';
-                this.element.style.height = height + 'px';
-                this.element.style.maxWidth = width + 'px';
-                this.element.style.maxHeight = height + 'px';
-            }
-
-            if (this.canvas) {
-                this.canvas.width = width;
-                this.canvas.height = height;
-                this.canvas.style.width = width + 'px';
-                this.canvas.style.height = height + 'px';
-
-                if (this.gl_refs.gl) {
-                    this.gl_refs.gl.viewport(0, 0, width, height);
-                    if (this.gl_refs.resolutionLoc) {
-                        this.gl_refs.gl.uniform2f(this.gl_refs.resolutionLoc, width, height);
-                    }
-                    if (this.gl_refs.borderRadiusLoc) {
-                        this.gl_refs.gl.uniform1f(this.gl_refs.borderRadiusLoc, this.borderRadius);
-                    }
-                }
-            }
-        } else {
-            this.updateSizeFromDOM();
-        }
+    if (this.element) {
+      this.element.style.borderRadius = this.borderRadius + 'px';
     }
 
-    setupAsNestedGlass(): void {
-        if (this.parent && !this.isNestedGlass) {
-            this.isNestedGlass = true;
-            if (this.webglInitialized) {
-                this.initWebGL();
-            }
+    if (this.canvas) {
+      this.canvas.style.borderRadius = this.borderRadius + 'px';
+    }
+
+    if (this.type === 'circle') {
+      this.width = width;
+      this.height = height;
+
+      if (this.canvas) {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.canvas.style.width = width + 'px';
+        this.canvas.style.height = height + 'px';
+
+        if (this.gl_refs.gl) {
+          this.gl_refs.gl.viewport(0, 0, width, height);
+          if (this.gl_refs.resolutionLoc) {
+            this.gl_refs.gl.uniform2f(this.gl_refs.resolutionLoc, width, height);
+          }
+          if (this.gl_refs.borderRadiusLoc) {
+            this.gl_refs.gl.uniform1f(this.gl_refs.borderRadiusLoc, this.borderRadius);
+          }
         }
-    }
+      }
+    } else if (this.type === 'pill') {
+      this.width = width;
+      this.height = height;
 
-    static measureText(text: string, fontSize: number): TextMetrics {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d')!;
-        ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
-        return ctx.measureText(text);
-    }
+      if (this.element) {
+        this.element.style.width = width + 'px';
+        this.element.style.height = height + 'px';
+        this.element.style.maxWidth = width + 'px';
+        this.element.style.maxHeight = height + 'px';
+      }
 
-    private createTextElement(): void {
-        this.textElement = document.createElement('div');
-        this.textElement.className = 'glass-button-text';
-        this.textElement.textContent = this.text;
-        this.textElement.style.fontSize = this.fontSize + 'px';
+      if (this.canvas) {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.canvas.style.width = width + 'px';
+        this.canvas.style.height = height + 'px';
 
-        this.element?.appendChild(this.textElement);
-    }
-
-    private setupClickHandler(): void {
-        if (this.onClick && this.element) {
-            this.element.addEventListener('click', (e: MouseEvent) => {
-                e.preventDefault();
-                this.onClick?.(this.text);
-            });
+        if (this.gl_refs.gl) {
+          this.gl_refs.gl.viewport(0, 0, width, height);
+          if (this.gl_refs.resolutionLoc) {
+            this.gl_refs.gl.uniform2f(this.gl_refs.resolutionLoc, width, height);
+          }
+          if (this.gl_refs.borderRadiusLoc) {
+            this.gl_refs.gl.uniform1f(this.gl_refs.borderRadiusLoc, this.borderRadius);
+          }
         }
+      }
+    } else {
+      this.updateSizeFromDOM();
+    }
+  }
+
+  setupAsNestedGlass(): void {
+    if (this.parent && !this.isNestedGlass) {
+      this.isNestedGlass = true;
+      if (this.webglInitialized) {
+        this.initWebGL();
+      }
+    }
+  }
+
+  static measureText(text: string, fontSize: number): TextMetrics {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
+    return ctx.measureText(text);
+  }
+
+  private createTextElement(): void {
+    this.textElement = document.createElement('div');
+    this.textElement.className = 'glass-button-text';
+    this.textElement.textContent = this.text;
+    this.textElement.style.fontSize = this.fontSize + 'px';
+
+    this.element?.appendChild(this.textElement);
+  }
+
+  private setupClickHandler(): void {
+    if (this.onClick && this.element) {
+      this.element.addEventListener('click', (e: MouseEvent) => {
+        e.preventDefault();
+        this.onClick?.(this.text);
+      });
+    }
+  }
+
+  override initWebGL(): void {
+    if (!Container.pageSnapshot || !this.gl) return;
+
+    if (this.parent && this.isNestedGlass) {
+      this.initNestedGlass();
+    } else {
+      super.initWebGL();
+    }
+  }
+
+  private initNestedGlass(): void {
+    if (!this.parent?.webglInitialized) {
+      setTimeout(() => this.initNestedGlass(), 100);
+      return;
     }
 
-    override initWebGL(): void {
-        if (!Container.pageSnapshot || !this.gl) return;
+    this.setupDynamicNestedShader();
+    this.webglInitialized = true;
+  }
 
-        if (this.parent && this.isNestedGlass) {
-            this.initNestedGlass();
-        } else {
-            super.initWebGL();
-        }
-    }
+  private setupDynamicNestedShader(): void {
+    const gl = this.gl;
+    if (!gl || !this.parent) return;
 
-    private initNestedGlass(): void {
-        if (!this.parent?.webglInitialized) {
-            setTimeout(() => this.initNestedGlass(), 100);
-            return;
-        }
-
-        this.setupDynamicNestedShader();
-        this.webglInitialized = true;
-    }
-
-    private setupDynamicNestedShader(): void {
-        const gl = this.gl;
-        if (!gl || !this.parent) return;
-
-        const vsSource = `
+    const vsSource = `
       attribute vec2 a_position;
       attribute vec2 a_texcoord;
       varying vec2 v_texcoord;
@@ -205,7 +205,7 @@ class Button extends Container {
       }
     `;
 
-        const fsSource = `
+    const fsSource = `
       precision mediump float;
       uniform sampler2D u_image;
       uniform vec2 u_resolution;
@@ -426,176 +426,180 @@ class Button extends Container {
       }
     `;
 
-        const program = this.createProgram(gl, vsSource, fsSource);
-        if (!program) return;
+    const program = this.createProgram(gl, vsSource, fsSource);
+    if (!program) return;
 
-        gl.useProgram(program);
+    gl.useProgram(program);
 
-        const positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
-        const texcoordBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0]), gl.STATIC_DRAW);
+    const texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0]), gl.STATIC_DRAW);
 
-        const positionLoc = gl.getAttribLocation(program, 'a_position');
-        const texcoordLoc = gl.getAttribLocation(program, 'a_texcoord');
-        const resolutionLoc = gl.getUniformLocation(program, 'u_resolution');
-        const textureSizeLoc = gl.getUniformLocation(program, 'u_textureSize');
-        const blurRadiusLoc = gl.getUniformLocation(program, 'u_blurRadius');
-        const borderRadiusLoc = gl.getUniformLocation(program, 'u_borderRadius');
-        const buttonPositionLoc = gl.getUniformLocation(program, 'u_buttonPosition');
-        const containerPositionLoc = gl.getUniformLocation(program, 'u_containerPosition');
-        const containerSizeLoc = gl.getUniformLocation(program, 'u_containerSize');
-        const warpLoc = gl.getUniformLocation(program, 'u_warp');
-        const edgeIntensityLoc = gl.getUniformLocation(program, 'u_edgeIntensity');
-        const rimIntensityLoc = gl.getUniformLocation(program, 'u_rimIntensity');
-        const baseIntensityLoc = gl.getUniformLocation(program, 'u_baseIntensity');
-        const edgeDistanceLoc = gl.getUniformLocation(program, 'u_edgeDistance');
-        const rimDistanceLoc = gl.getUniformLocation(program, 'u_rimDistance');
-        const baseDistanceLoc = gl.getUniformLocation(program, 'u_baseDistance');
-        const cornerBoostLoc = gl.getUniformLocation(program, 'u_cornerBoost');
-        const rippleEffectLoc = gl.getUniformLocation(program, 'u_rippleEffect');
-        const tintOpacityLoc = gl.getUniformLocation(program, 'u_tintOpacity');
-        const imageLoc = gl.getUniformLocation(program, 'u_image');
+    const positionLoc = gl.getAttribLocation(program, 'a_position');
+    const texcoordLoc = gl.getAttribLocation(program, 'a_texcoord');
+    const resolutionLoc = gl.getUniformLocation(program, 'u_resolution');
+    const textureSizeLoc = gl.getUniformLocation(program, 'u_textureSize');
+    const blurRadiusLoc = gl.getUniformLocation(program, 'u_blurRadius');
+    const borderRadiusLoc = gl.getUniformLocation(program, 'u_borderRadius');
+    const buttonPositionLoc = gl.getUniformLocation(program, 'u_buttonPosition');
+    const containerPositionLoc = gl.getUniformLocation(program, 'u_containerPosition');
+    const containerSizeLoc = gl.getUniformLocation(program, 'u_containerSize');
+    const warpLoc = gl.getUniformLocation(program, 'u_warp');
+    const edgeIntensityLoc = gl.getUniformLocation(program, 'u_edgeIntensity');
+    const rimIntensityLoc = gl.getUniformLocation(program, 'u_rimIntensity');
+    const baseIntensityLoc = gl.getUniformLocation(program, 'u_baseIntensity');
+    const edgeDistanceLoc = gl.getUniformLocation(program, 'u_edgeDistance');
+    const rimDistanceLoc = gl.getUniformLocation(program, 'u_rimDistance');
+    const baseDistanceLoc = gl.getUniformLocation(program, 'u_baseDistance');
+    const cornerBoostLoc = gl.getUniformLocation(program, 'u_cornerBoost');
+    const rippleEffectLoc = gl.getUniformLocation(program, 'u_rippleEffect');
+    const tintOpacityLoc = gl.getUniformLocation(program, 'u_tintOpacity');
+    const imageLoc = gl.getUniformLocation(program, 'u_image');
 
-        const texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
-        const containerCanvas = this.parent.canvas!;
-        gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            containerCanvas.width,
-            containerCanvas.height,
-            0,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            null
-        );
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const containerCanvas = this.parent.canvas!;
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      containerCanvas.width,
+      containerCanvas.height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-        this.gl_refs = {
-            gl,
-            texture: texture!,
-            textureSizeLoc,
-            positionLoc,
-            texcoordLoc,
-            resolutionLoc,
-            blurRadiusLoc,
-            borderRadiusLoc,
-            buttonPositionLoc,
-            containerPositionLoc,
-            containerSizeLoc,
-            warpLoc,
-            edgeIntensityLoc,
-            rimIntensityLoc,
-            baseIntensityLoc,
-            edgeDistanceLoc,
-            rimDistanceLoc,
-            baseDistanceLoc,
-            cornerBoostLoc,
-            rippleEffectLoc,
-            tintOpacityLoc,
-            imageLoc,
-            positionBuffer: positionBuffer!,
-            texcoordBuffer: texcoordBuffer!
-        };
+    this.gl_refs = {
+      gl,
+      texture: texture!,
+      textureSizeLoc,
+      positionLoc,
+      texcoordLoc,
+      resolutionLoc,
+      blurRadiusLoc,
+      borderRadiusLoc,
+      buttonPositionLoc,
+      containerPositionLoc,
+      containerSizeLoc,
+      warpLoc,
+      edgeIntensityLoc,
+      rimIntensityLoc,
+      baseIntensityLoc,
+      edgeDistanceLoc,
+      rimDistanceLoc,
+      baseDistanceLoc,
+      cornerBoostLoc,
+      rippleEffectLoc,
+      tintOpacityLoc,
+      imageLoc,
+      positionBuffer: positionBuffer!,
+      texcoordBuffer: texcoordBuffer!
+    };
 
-        gl.viewport(0, 0, this.canvas!.width, this.canvas!.height);
-        gl.clearColor(0, 0, 0, 0);
+    gl.viewport(0, 0, this.canvas!.width, this.canvas!.height);
+    gl.clearColor(0, 0, 0, 0);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.enableVertexAttribArray(positionLoc);
-        gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.enableVertexAttribArray(positionLoc);
+    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-        gl.enableVertexAttribArray(texcoordLoc);
-        gl.vertexAttribPointer(texcoordLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.enableVertexAttribArray(texcoordLoc);
+    gl.vertexAttribPointer(texcoordLoc, 2, gl.FLOAT, false, 0, 0);
 
-        gl.uniform2f(resolutionLoc, this.canvas!.width, this.canvas!.height);
-        gl.uniform2f(textureSizeLoc, containerCanvas.width, containerCanvas.height);
-        gl.uniform1f(blurRadiusLoc, window.glassControls?.blurRadius ?? 2.0);
-        gl.uniform1f(borderRadiusLoc, this.borderRadius);
-        gl.uniform1f(warpLoc, this.warp ? 1.0 : 0.0);
-        gl.uniform1f(edgeIntensityLoc, window.glassControls?.edgeIntensity ?? 0.01);
-        gl.uniform1f(rimIntensityLoc, window.glassControls?.rimIntensity ?? 0.05);
-        gl.uniform1f(baseIntensityLoc, window.glassControls?.baseIntensity ?? 0.01);
-        gl.uniform1f(edgeDistanceLoc, window.glassControls?.edgeDistance ?? 0.15);
-        gl.uniform1f(rimDistanceLoc, window.glassControls?.rimDistance ?? 0.8);
-        gl.uniform1f(baseDistanceLoc, window.glassControls?.baseDistance ?? 0.1);
-        gl.uniform1f(cornerBoostLoc, window.glassControls?.cornerBoost ?? 0.02);
-        gl.uniform1f(rippleEffectLoc, window.glassControls?.rippleEffect ?? 0.1);
-        gl.uniform1f(tintOpacityLoc, this.tintOpacity);
+    gl.uniform2f(resolutionLoc, this.canvas!.width, this.canvas!.height);
+    gl.uniform2f(textureSizeLoc, containerCanvas.width, containerCanvas.height);
+    gl.uniform1f(blurRadiusLoc, window.glassControls?.blurRadius ?? 2.0);
+    gl.uniform1f(borderRadiusLoc, this.borderRadius);
+    gl.uniform1f(warpLoc, this.warp ? 1.0 : 0.0);
+    gl.uniform1f(edgeIntensityLoc, window.glassControls?.edgeIntensity ?? 0.01);
+    gl.uniform1f(rimIntensityLoc, window.glassControls?.rimIntensity ?? 0.05);
+    gl.uniform1f(baseIntensityLoc, window.glassControls?.baseIntensity ?? 0.01);
+    gl.uniform1f(edgeDistanceLoc, window.glassControls?.edgeDistance ?? 0.15);
+    gl.uniform1f(rimDistanceLoc, window.glassControls?.rimDistance ?? 0.8);
+    gl.uniform1f(baseDistanceLoc, window.glassControls?.baseDistance ?? 0.1);
+    gl.uniform1f(cornerBoostLoc, window.glassControls?.cornerBoost ?? 0.02);
+    gl.uniform1f(rippleEffectLoc, window.glassControls?.rippleEffect ?? 0.1);
+    gl.uniform1f(tintOpacityLoc, this.tintOpacity);
 
-        const buttonPosition = this.getPosition();
-        const containerPosition = this.parent.getPosition();
-        gl.uniform2f(buttonPositionLoc, buttonPosition.x, buttonPosition.y);
-        gl.uniform2f(containerPositionLoc, containerPosition.x, containerPosition.y);
-        gl.uniform2f(containerSizeLoc, this.parent.width, this.parent.height);
+    const buttonPosition = this.getPosition();
+    const containerPosition = this.parent.getPosition();
+    gl.uniform2f(buttonPositionLoc, buttonPosition.x, buttonPosition.y);
+    gl.uniform2f(containerPositionLoc, containerPosition.x, containerPosition.y);
+    gl.uniform2f(containerSizeLoc, this.parent.width, this.parent.height);
 
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.uniform1i(imageLoc, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.uniform1i(imageLoc, 0);
 
-        this.startNestedRenderLoop();
-    }
+    this.startNestedRenderLoop();
+  }
 
-    private startNestedRenderLoop(): void {
-        const render = () => {
-            if (!this.gl_refs.gl || !this.parent) return;
+  private startNestedRenderLoop(): void {
+    const render = () => {
+      if (!this.gl_refs.gl || !this.parent) return;
 
-            const gl = this.gl_refs.gl;
+      const gl = this.gl_refs.gl;
 
-            const containerCanvas = this.parent.canvas!;
-            if (this.gl_refs.texture) {
-                gl.bindTexture(gl.TEXTURE_2D, this.gl_refs.texture);
-                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, containerCanvas);
-            }
+      const containerCanvas = this.parent.canvas!;
+      if (this.gl_refs.texture) {
+        gl.bindTexture(gl.TEXTURE_2D, this.gl_refs.texture);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, containerCanvas);
+      }
 
-            gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clear(gl.COLOR_BUFFER_BIT);
 
-            const buttonPosition = this.getPosition();
-            const containerPosition = this.parent.getPosition();
-            if (this.gl_refs.buttonPositionLoc) {
-                gl.uniform2f(this.gl_refs.buttonPositionLoc, buttonPosition.x, buttonPosition.y);
-            }
-            if (this.gl_refs.containerPositionLoc) {
-                gl.uniform2f(this.gl_refs.containerPositionLoc, containerPosition.x, containerPosition.y);
-            }
+      const buttonPosition = this.getPosition();
+      const containerPosition = this.parent.getPosition();
+      if (this.gl_refs.buttonPositionLoc) {
+        gl.uniform2f(this.gl_refs.buttonPositionLoc, buttonPosition.x, buttonPosition.y);
+      }
+      if (this.gl_refs.containerPositionLoc) {
+        gl.uniform2f(this.gl_refs.containerPositionLoc, containerPosition.x, containerPosition.y);
+      }
 
-            if (window.glassControls) {
-                if (this.gl_refs.blurRadiusLoc) gl.uniform1f(this.gl_refs.blurRadiusLoc, window.glassControls.blurRadius ?? 2.0);
-                if (this.gl_refs.edgeIntensityLoc) gl.uniform1f(this.gl_refs.edgeIntensityLoc, window.glassControls.edgeIntensity ?? 0.01);
-                if (this.gl_refs.rimIntensityLoc) gl.uniform1f(this.gl_refs.rimIntensityLoc, window.glassControls.rimIntensity ?? 0.05);
-                if (this.gl_refs.baseIntensityLoc) gl.uniform1f(this.gl_refs.baseIntensityLoc, window.glassControls.baseIntensity ?? 0.01);
-                if (this.gl_refs.edgeDistanceLoc) gl.uniform1f(this.gl_refs.edgeDistanceLoc, window.glassControls.edgeDistance ?? 0.15);
-                if (this.gl_refs.rimDistanceLoc) gl.uniform1f(this.gl_refs.rimDistanceLoc, window.glassControls.rimDistance ?? 0.8);
-                if (this.gl_refs.baseDistanceLoc) gl.uniform1f(this.gl_refs.baseDistanceLoc, window.glassControls.baseDistance ?? 0.1);
-                if (this.gl_refs.cornerBoostLoc) gl.uniform1f(this.gl_refs.cornerBoostLoc, window.glassControls.cornerBoost ?? 0.02);
-                if (this.gl_refs.rippleEffectLoc) gl.uniform1f(this.gl_refs.rippleEffectLoc, window.glassControls.rippleEffect ?? 0.1);
+      if (window.glassControls) {
+        if (this.gl_refs.blurRadiusLoc) gl.uniform1f(this.gl_refs.blurRadiusLoc, window.glassControls.blurRadius ?? 2.0);
+        if (this.gl_refs.edgeIntensityLoc) gl.uniform1f(this.gl_refs.edgeIntensityLoc, window.glassControls.edgeIntensity ?? 0.01);
+        if (this.gl_refs.rimIntensityLoc) gl.uniform1f(this.gl_refs.rimIntensityLoc, window.glassControls.rimIntensity ?? 0.05);
+        if (this.gl_refs.baseIntensityLoc) gl.uniform1f(this.gl_refs.baseIntensityLoc, window.glassControls.baseIntensity ?? 0.01);
+        if (this.gl_refs.edgeDistanceLoc) gl.uniform1f(this.gl_refs.edgeDistanceLoc, window.glassControls.edgeDistance ?? 0.15);
+        if (this.gl_refs.rimDistanceLoc) gl.uniform1f(this.gl_refs.rimDistanceLoc, window.glassControls.rimDistance ?? 0.8);
+        if (this.gl_refs.baseDistanceLoc) gl.uniform1f(this.gl_refs.baseDistanceLoc, window.glassControls.baseDistance ?? 0.1);
+        if (this.gl_refs.cornerBoostLoc) gl.uniform1f(this.gl_refs.cornerBoostLoc, window.glassControls.cornerBoost ?? 0.02);
+        if (this.gl_refs.rippleEffectLoc) gl.uniform1f(this.gl_refs.rippleEffectLoc, window.glassControls.rippleEffect ?? 0.1);
 
-                if (window.glassControls.tintOpacity !== undefined && this.gl_refs.tintOpacityLoc) {
-                    gl.uniform1f(this.gl_refs.tintOpacityLoc, window.glassControls.tintOpacity);
-                }
-            }
+        if (window.glassControls.tintOpacity !== undefined && this.gl_refs.tintOpacityLoc) {
+          gl.uniform1f(this.gl_refs.tintOpacityLoc, window.glassControls.tintOpacity);
+        } else if (this.gl_refs.tintOpacityLoc) {
+          gl.uniform1f(this.gl_refs.tintOpacityLoc, this.tintOpacity);
+        }
+      } else if (this.gl_refs.tintOpacityLoc) {
+        gl.uniform1f(this.gl_refs.tintOpacityLoc, this.tintOpacity);
+      }
 
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-        };
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
 
-        const animationLoop = () => {
-            render();
-            requestAnimationFrame(animationLoop);
-        };
+    const animationLoop = () => {
+      render();
+      requestAnimationFrame(animationLoop);
+    };
 
-        animationLoop();
-        this.render = render;
-    }
+    animationLoop();
+    this.render = render;
+  }
 }
 
 export default Button;

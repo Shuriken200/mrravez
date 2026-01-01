@@ -138,7 +138,8 @@ class Container {
             this.children.splice(index, 1);
             child.parent = undefined;
 
-            if (child.element && this.element?.contains(child.element)) {
+            // Only remove if it's a direct child of this container
+            if (child.element && child.element.parentNode === this.element) {
                 this.element.removeChild(child.element);
             }
 
@@ -734,7 +735,11 @@ class Container {
 
                 if (window.glassControls.tintOpacity !== undefined && this.gl_refs.tintOpacityLoc) {
                     gl.uniform1f(this.gl_refs.tintOpacityLoc, window.glassControls.tintOpacity);
+                } else if (this.gl_refs.tintOpacityLoc) {
+                    gl.uniform1f(this.gl_refs.tintOpacityLoc, this.tintOpacity);
                 }
+            } else if (this.gl_refs.tintOpacityLoc) {
+                gl.uniform1f(this.gl_refs.tintOpacityLoc, this.tintOpacity);
             }
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);

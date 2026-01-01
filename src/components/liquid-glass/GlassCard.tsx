@@ -77,13 +77,15 @@ export function GlassCard({
                 // But we need it to be visible. Children (content) need 'auto'.
                 instance.element.style.pointerEvents = 'none';
 
-                // 3D Tilt Logic
-                const handleMove = (e: MouseEvent) => {
-                    if (!containerRef.current || !mountRef.current) return;
+                // 3D Tilt Logic with smooth tracking
+                let isEntering = false;
+                let enterTimeout: number | null = null;
+                let currentRotateX = 0;
+                let currentRotateY = 0;
+                const smoothingFactor = 0.15; // Lower = smoother but slower response
 
-                    // Only apply tilt if hover is interacting with this card context
-                    // Simple check: is the card roughly under the mouse?
-                    // Actually, the listener is ON the wrapper, so it's correct.
+                const handleMove = (e: MouseEvent) => {
+                    if (!containerRef.current || !mountRef.current || isEntering) return;
 
                     const rect = mountRef.current.getBoundingClientRect();
                     const centerX = rect.left + rect.width / 2;
@@ -95,19 +97,28 @@ export function GlassCard({
                     // Max tilt (degrees)
                     const maxTilt = 3;
 
-                    // X rotation (tilting up/down) depends on Y distance
-                    const rotateX = (mouseY / (rect.height / 2)) * -maxTilt;
+                    // Calculate target rotations
+                    const targetRotateX = (mouseY / (rect.height / 2)) * -maxTilt;
+                    const targetRotateY = (mouseX / (rect.width / 2)) * maxTilt;
 
-                    // Y rotation (tilting left/right) depends on X distance
-                    const rotateY = (mouseX / (rect.width / 2)) * maxTilt;
+                    // Lerp toward target (smooth interpolation)
+                    currentRotateX += (targetRotateX - currentRotateX) * smoothingFactor;
+                    currentRotateY += (targetRotateY - currentRotateY) * smoothingFactor;
 
                     if (instance.element) {
-                        instance.element.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`;
-                        instance.element.style.transition = 'transform 0.1s ease-out';
+                        instance.element.style.transform = `rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) scale3d(1.01, 1.01, 1.01)`;
                     }
                 };
 
                 const handleLeave = () => {
+                    isEntering = false;
+                    if (enterTimeout) {
+                        cancelAnimationFrame(enterTimeout);
+                        enterTimeout = null;
+                    }
+                    // Reset current rotation values
+                    currentRotateX = 0;
+                    currentRotateY = 0;
                     if (instance.element) {
                         instance.element.style.transform = `rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
                         instance.element.style.transition = 'transform 0.5s ease-out';
@@ -116,7 +127,15 @@ export function GlassCard({
 
                 const handleEnter = () => {
                     if (instance.element) {
-                        instance.element.style.transition = 'transform 0.1s ease-out';
+                        isEntering = true;
+                        // Set smooth transition and ensure we start from neutral position
+                        instance.element.style.transition = 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)';
+                        instance.element.style.transform = `rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+
+                        // Allow tilt tracking after a brief delay to ensure smooth start
+                        enterTimeout = requestAnimationFrame(() => {
+                            isEntering = false;
+                        });
                     }
                 };
 

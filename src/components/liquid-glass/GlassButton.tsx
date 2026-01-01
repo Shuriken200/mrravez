@@ -108,9 +108,9 @@ export function GlassButton({
                     instance.element.style.cursor = 'pointer';
                 }
 
-                // Override the library's auto-sizing - allow flexible sizing
-                instance.element.style.width = '';
-                instance.element.style.height = '';
+                // Override the library's auto-sizing - ensure it fills the wrapper 1:1
+                instance.element.style.width = '100%';
+                instance.element.style.height = '100%';
                 instance.element.style.minWidth = '';
                 instance.element.style.minHeight = '';
                 instance.element.style.maxWidth = '';
@@ -205,7 +205,7 @@ export function GlassButton({
     const refProps = { ref: mountRef as any };
 
     // Calculate border radius for focus ring
-    const borderRadius = type === 'pill' ? 9999 : (type === 'circle' ? '50%' : size);
+    const borderRadius = type === 'pill' ? '9999px' : (type === 'circle' ? '50%' : `${size}px`);
 
     // Common props for both tags
     const commonProps = {
@@ -215,14 +215,15 @@ export function GlassButton({
             zIndex: 20,
             pointerEvents: 'auto' as const,
             backfaceVisibility: 'hidden' as const, // Stabilize 3D rendering
-            transform: 'translateZ(0)', // Force GPU layer
-            borderRadius, // Ensure native outline matches shape
+            boxSizing: 'border-box' as const, // Ensure size matches perfectly
+            borderRadius, // Wrapper must match button shape
             ...(href ? {
                 display: 'block',
                 textDecoration: 'none'
             } : {}),
             ...style
         },
+        tabIndex: 0, // Make focusable for keyboard navigation
         onClick,
         onFocus: () => animateFrosting(hoverOpacity),
         onBlur: () => animateFrosting(baseOpacity)
@@ -235,12 +236,28 @@ export function GlassButton({
         rel
     } : {};
 
+    // Focus Ring Logic
+    const focusOffset = 4;
+    const focusRadius = borderRadius; // Focus ring inherits exact same border radius
+
     return (
         <Tag
             {...refProps}
             {...commonProps}
             {...anchorProps}
         >
+            {/* Explicit Focus Ring for perfect concentricity */}
+            <span
+                className="glass-focus-ring"
+                style={{
+                    position: 'absolute',
+                    inset: `-${focusOffset}px`,
+                    borderRadius: focusRadius,
+                    pointerEvents: 'none',
+                    zIndex: 100
+                }}
+            />
+
             {isReady && children && buttonRef.current?.element && (
                 <ButtonContent button={buttonRef.current}>
                     {children}

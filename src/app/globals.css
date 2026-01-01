@@ -42,6 +42,11 @@
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-xl: 24px;
+
+  /* Custom Colors */
+  --color-maroon: #4E0506;
+  --color-white: #ffffff;
+  --color-shadow: rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="light"] {
@@ -671,6 +676,16 @@ a:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Glass Button Focus Ring */
+.glass-button-context {
+  outline: none;
+}
+
+.glass-button-context:focus-visible .glass-focus-ring {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px rgba(162, 68, 86, 0.15);
 }
 
 ::selection {

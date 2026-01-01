@@ -25,9 +25,9 @@ export function LinksCard() {
                 margin: '0 0 8px 0',
                 fontSize: '24px',
                 fontWeight: '600',
-                color: 'white',
+                color: 'var(--color-white)',
                 textAlign: 'center',
-                textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                textShadow: '0 2px 10px var(--color-shadow)'
             }}>
                 Links
             </h2>
@@ -35,15 +35,32 @@ export function LinksCard() {
             <style dangerouslySetInnerHTML={{
                 __html: `
                 .glass-link-content {
-                    color: white;
+                    color: var(--color-white);
                     transition: color 0.2s ease;
                 }
                 .glass-button-context {
                     outline: none;
+                    position: relative;
+                    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), z-index 0s linear 0.1s;
+                }
+                /* Focus Ring Styles (Structure & Shape handled in GlassButton.tsx) */
+                .glass-focus-ring {
+                    border: 2px solid var(--color-maroon);
+                    opacity: 0; /* Hidden by default */
+                    transition: opacity 0.2s ease;
+                }
+                .glass-button-context:focus-visible .glass-focus-ring {
+                    opacity: 1;
+                }
+                .glass-button-context:hover,
+                .glass-button-context:focus-within {
+                    transform: translateZ(50px) scale(1.05);
+                    z-index: 50;
+                    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), z-index 0s linear 0s;
                 }
                 .glass-button:hover .glass-link-content,
                 .glass-button-context:focus-visible .glass-link-content {
-                    color: #990000;
+                    color: var(--color-maroon);
                 }
                 .glass-arrow {
                     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);

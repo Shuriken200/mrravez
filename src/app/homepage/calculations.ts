@@ -14,8 +14,13 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Calculate linear interpolation progress between start and end
+ * Returns 1 if start === end (instant transition, already complete)
  */
 function calculateProgress(value: number, start: number, end: number): number {
+    if (start === end) {
+        // Avoid division by zero - if start equals end, we're already past it
+        return value >= start ? 1 : 0;
+    }
     return clamp((value - start) / (end - start), 0, 1);
 }
 

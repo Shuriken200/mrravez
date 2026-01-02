@@ -15,6 +15,11 @@ export function ScrollDotIndicator({
     visible,
     theme,
 }: ScrollDotIndicatorProps) {
+    // Don't render at all until visible to prevent flash
+    if (!visible) {
+        return null;
+    }
+
     // Colors based on theme
     const activeColor = theme === "dark" ? "#ffffff" : "#000000";
     const inactiveColor = theme === "dark" ? "#888888" : "#555555";

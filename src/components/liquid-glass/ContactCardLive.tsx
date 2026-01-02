@@ -66,7 +66,7 @@ export function ContactCardLive({ opacity = 1, entryProgress = 1, mobileOffset =
                         opacity: 0.7,
                         textAlign: 'center'
                     }}>
-                        for private or other inquiries:
+                        for personal or other inquiries:
                     </p>
                     <GlassButtonLive 
                         href={`mailto:${siteConfig.contact.email}`}

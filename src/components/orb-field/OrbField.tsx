@@ -40,7 +40,7 @@ export function OrbField({ visible, mouseX, mouseY }: OrbFieldProps) {
                 position: 'fixed',
                 inset: 0,
                 pointerEvents: 'none',
-                zIndex: 1,
+                zIndex: 0,
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'scale(1)' : 'scale(0.8)',
                 transition: 'opacity 1.2s ease-out, transform 1.2s ease-out',

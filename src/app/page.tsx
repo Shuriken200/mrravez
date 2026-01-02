@@ -68,19 +68,17 @@ export default function HomePage() {
                 {/* Background orb field */}
                 <OrbField visible={stage >= 2} mouseX={mousePos.x} mouseY={mousePos.y} />
 
-                {/* Theme toggle button */}
-                <div
+                {/* Theme toggle button - hidden for now (dark mode only) */}
+                {/* <div
                     className={`${styles.themeToggleWrapper} ${isReady ? styles.themeToggleWrapperVisible : ""}`}
                 >
                     <ThemeToggle />
-                </div>
+                </div> */}
 
                 {/* Greeting section ("Hi!" and "Welcome...") */}
-                {!hasPassedGreeting && (
+                {stage < 7 && (
                     <GreetingSection
                         stage={stage}
-                        greetingVisibility={visibility.greeting}
-                        welcomeVisibility={visibility.welcome}
                         theme={theme}
                     />
                 )}

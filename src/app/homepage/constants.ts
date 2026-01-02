@@ -20,10 +20,22 @@ export const SNAP_DELAY = 120;
 export const MOBILE_BREAKPOINT = 768;
 
 // Animation stage timing (ms)
+// Stage 0: Initial (hidden)
+// Stage 1: Hi! emerging (growing from tiny)
+// Stage 2: Hi! popped (burst)
+// Stage 3: Hi! fading out
+// Stage 4: Hi! fully gone, Welcome starts appearing
+// Stage 5: Welcome fully visible
+// Stage 6: Welcome starts fading out
+// Stage 7: Welcome fully gone, profile card appears
 export const STAGE_TIMINGS = {
-    stage1: 1500,
-    stage2: 6000,
-    stage3: 7500,
+    stage1: 1500,   // Hi! starts emerging
+    stage2: 6000,   // Hi! bursts
+    stage3: 7000,   // 1s after burst: Hi! starts fading
+    stage4: 7800,   // Hi! fully gone, Welcome starts
+    stage5: 8600,   // Welcome fully visible
+    stage6: 11600,  // 3s of Welcome, then start fade out
+    stage7: 13200,  // Welcome fully gone (1.6s fade), show profile
 } as const;
 
 // Scroll zones for card visibility
@@ -41,10 +53,10 @@ export const SCROLL_ZONES = {
         fadeOutStart: 0.28,
         fadeOutEnd: 0.45,
     },
-    // Profile: entry 0.35-0.7, exit 0.95-1.25
+    // Profile: fully visible at start (entry 0-0), exit 0.95-1.25
     profile: {
-        entryStart: 0.35,
-        entryEnd: 0.7,
+        entryStart: 0,
+        entryEnd: 0,
         exitStart: 0.95,
         exitEnd: 1.25,
     },

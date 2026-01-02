@@ -53,31 +53,20 @@ type ProvidersProps = {
 };
 
 export function Providers({ children }: ProvidersProps) {
-    const [theme, setThemeState] = useState<Theme>("dark");
-    const [mounted, setMounted] = useState(false);
+    // Force dark mode for now
+    const theme: Theme = "dark";
 
     useEffect(() => {
-        setMounted(true);
-        const stored = localStorage.getItem("theme") as Theme | null;
-        if (stored) {
-            setThemeState(stored);
-        } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-            setThemeState("light");
-        }
+        document.documentElement.setAttribute("data-theme", "dark");
     }, []);
 
-    useEffect(() => {
-        if (!mounted) return;
-        document.documentElement.setAttribute("data-theme", theme);
-        localStorage.setItem("theme", theme);
-    }, [theme, mounted]);
-
+    // Disabled theme switching - always dark mode
     const toggleTheme = () => {
-        setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+        // No-op: dark mode only for now
     };
 
-    const setTheme = (newTheme: Theme) => {
-        setThemeState(newTheme);
+    const setTheme = (_newTheme: Theme) => {
+        // No-op: dark mode only for now
     };
 
     return (

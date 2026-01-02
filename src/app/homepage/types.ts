@@ -45,8 +45,13 @@ export interface AnimationStagesState {
     isReady: boolean;
 }
 
+export interface AnimationStagesOptions {
+    skipAnimation?: boolean;
+}
+
 export interface ScrollNavigationOptions {
     enabled: boolean;
+    initialSection?: number;
 }
 
 export interface ScrollNavigationState {

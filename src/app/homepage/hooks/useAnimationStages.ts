@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { STAGE_TIMINGS } from "../constants";
-import type { AnimationStagesState } from "../types";
+import type { AnimationStagesState, AnimationStagesOptions } from "../types";
 
 /**
  * Hook to manage the timed animation stage transitions
@@ -14,11 +14,19 @@ import type { AnimationStagesState } from "../types";
  * Stage 5: Welcome fully visible
  * Stage 6: Welcome starts fading out
  * Stage 7: Welcome fully gone, profile card appears
+ * 
+ * @param options.skipAnimation - If true, skip directly to stage 7 (ready state)
  */
-export function useAnimationStages(): AnimationStagesState {
-    const [stage, setStage] = useState(0);
+export function useAnimationStages(options?: AnimationStagesOptions): AnimationStagesState {
+    const skipAnimation = options?.skipAnimation ?? false;
+    const [stage, setStage] = useState(skipAnimation ? 7 : 0);
 
     useEffect(() => {
+        // Skip all animations if requested
+        if (skipAnimation) {
+            return;
+        }
+
         const timer1 = setTimeout(() => setStage(1), STAGE_TIMINGS.stage1);
         const timer2 = setTimeout(() => setStage(2), STAGE_TIMINGS.stage2);
         const timer3 = setTimeout(() => setStage(3), STAGE_TIMINGS.stage3);
@@ -36,7 +44,7 @@ export function useAnimationStages(): AnimationStagesState {
             clearTimeout(timer6);
             clearTimeout(timer7);
         };
-    }, []);
+    }, [skipAnimation]);
 
     return {
         stage,

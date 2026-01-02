@@ -17,6 +17,9 @@ const DESKTOP_SNAP_DELAY = 1000;
 // Threshold distance from resting point to trigger snap (in viewport units)
 const SNAP_THRESHOLD = 0.05;
 
+// URL paths for each section
+const SECTION_PATHS = ["/about", "/links", "/contact"] as const;
+
 /**
  * Hook to manage all scroll and touch navigation behavior
  * Handles desktop vertical scrolling and mobile horizontal swiping
@@ -24,13 +27,18 @@ const SNAP_THRESHOLD = 0.05;
  */
 export function useScrollNavigation({
     enabled,
+    initialSection,
 }: ScrollNavigationOptions): ScrollNavigationState {
-    const [scrollProgress, setScrollProgress] = useState(0);
-    const [hasPassedGreeting, setHasPassedGreeting] = useState(false);
-    const [activeSection, setActiveSection] = useState(0);
+    // Calculate initial values based on initialSection
+    const hasInitialSection = initialSection !== undefined && initialSection >= 0 && initialSection <= 2;
+    const initialProgress = hasInitialSection ? RESTING_POINTS[initialSection] : 0;
+    
+    const [scrollProgress, setScrollProgress] = useState(initialProgress);
+    const [hasPassedGreeting, setHasPassedGreeting] = useState(hasInitialSection);
+    const [activeSection, setActiveSection] = useState(hasInitialSection ? initialSection : 0);
     const [isJumping, setIsJumping] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const [mobileSection, setMobileSection] = useState(-1);
+    const [mobileSection, setMobileSection] = useState(hasInitialSection ? initialSection : -1);
 
     const snapTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const isSnappingRef = useRef(false);
@@ -40,6 +48,8 @@ export function useScrollNavigation({
     const lastUserScrollRef = useRef<number>(0);
     // Track if we're currently in a programmatic scroll
     const isProgrammaticScrollRef = useRef(false);
+    // Track if we've done the initial setup (for section pages)
+    const hasInitializedRef = useRef(false);
 
     // Detect mobile on mount and resize
     useEffect(() => {
@@ -50,6 +60,51 @@ export function useScrollNavigation({
         window.addEventListener("resize", checkMobile);
         return () => window.removeEventListener("resize", checkMobile);
     }, []);
+
+    // Set initial scroll position when there's an initial section (desktop only)
+    useEffect(() => {
+        if (hasInitialSection && enabled && !isMobile) {
+            const targetScroll = RESTING_POINTS[initialSection] * window.innerHeight;
+            
+            // Keep trying to scroll until we're at the right position
+            const ensureScrollPosition = () => {
+                window.scrollTo({
+                    top: targetScroll,
+                    behavior: "instant" as ScrollBehavior,
+                });
+                
+                // Check if we're at the right position
+                requestAnimationFrame(() => {
+                    const currentScroll = window.scrollY;
+                    const tolerance = 50;
+                    if (Math.abs(currentScroll - targetScroll) < tolerance) {
+                        hasInitializedRef.current = true;
+                    } else {
+                        // Try again
+                        setTimeout(ensureScrollPosition, 50);
+                    }
+                });
+            };
+            
+            ensureScrollPosition();
+        } else if (!hasInitialSection && enabled) {
+            // No initial section - mark as initialized immediately
+            hasInitializedRef.current = true;
+        }
+    }, [hasInitialSection, initialSection, enabled, isMobile]);
+
+    // Update URL when active section changes (without triggering navigation)
+    useEffect(() => {
+        if (!enabled || !hasPassedGreeting) return;
+        
+        const targetPath = SECTION_PATHS[activeSection];
+        const currentPath = window.location.pathname;
+        
+        // Only update if the path is different
+        if (currentPath !== targetPath) {
+            window.history.replaceState(null, "", targetPath);
+        }
+    }, [activeSection, enabled, hasPassedGreeting]);
 
     // Cancel any ongoing snap animation
     const cancelSnap = useCallback(() => {
@@ -187,6 +242,11 @@ export function useScrollNavigation({
     // Handle scroll for fade transitions (desktop only)
     const handleScroll = useCallback(() => {
         if (isMobile) return;
+
+        // Skip until initial setup is complete (prevents resetting section on page load)
+        if (!hasInitializedRef.current) {
+            return;
+        }
 
         const now = performance.now();
 
@@ -463,6 +523,21 @@ export function useScrollNavigation({
         },
         [activeSection, isJumping, isMobile, updateActiveSection, snapToMobileSection]
     );
+
+    // On mobile, when greeting animation completes (enabled becomes true),
+    // automatically snap to the first card position so it's centered
+    useEffect(() => {
+        if (enabled && isMobile && !hasInitialSection && mobileSection === -1) {
+            // Use a small delay to ensure the card carousel has mounted
+            const timer = setTimeout(() => {
+                setScrollProgress(RESTING_POINTS[0]);
+                setMobileSection(0);
+                setActiveSection(0);
+                setHasPassedGreeting(true);
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [enabled, isMobile, hasInitialSection, mobileSection]);
 
     // Add scroll/touch listener and enable scrolling after ready
     useEffect(() => {

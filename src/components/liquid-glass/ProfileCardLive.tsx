@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { LiveGlassCard } from "./LiveGlassCard";
 import { siteConfig } from "@/config/site.config";
 
@@ -16,6 +16,23 @@ interface ProfileCardLiveProps {
 
 export function ProfileCardLive({ opacity = 1, entryProgress = 1, exitProgress = 0, mobileOffset = 0, mobileScale = 1, style }: ProfileCardLiveProps) {
     const [isPhotoHovered, setIsPhotoHovered] = useState(false);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Debounced hover handlers to prevent flickering at edges
+    const handleMouseEnter = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+        setIsPhotoHovered(true);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        // Small delay before removing hover state to prevent edge flickering
+        hoverTimeoutRef.current = setTimeout(() => {
+            setIsPhotoHovered(false);
+        }, 50);
+    }, []);
 
     return (
         <LiveGlassCard
@@ -54,6 +71,11 @@ export function ProfileCardLive({ opacity = 1, entryProgress = 1, exitProgress =
                     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
                     text-align: center;
                 }
+                /* Stable hover zone - doesn't change size when inner content scales */
+                .profile-photo-hover-zone {
+                    padding: 10px;
+                    margin: -10px;
+                }
                 .profile-photo-wrapper-live {
                     position: relative;
                     width: 140px;
@@ -61,6 +83,9 @@ export function ProfileCardLive({ opacity = 1, entryProgress = 1, exitProgress =
                     border-radius: 50%;
                     overflow: hidden;
                     transform-style: preserve-3d;
+                    transform-origin: center center;
+                    transform: scale(1);
+                    will-change: transform;
                     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
                                 box-shadow 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
                 }
@@ -103,25 +128,30 @@ export function ProfileCardLive({ opacity = 1, entryProgress = 1, exitProgress =
                     About
                 </h2>
 
+                {/* Hover zone wrapper - stable bounds that don't change with scale */}
                 <div 
-                    className="profile-photo-wrapper-live"
-                    onMouseEnter={() => setIsPhotoHovered(true)}
-                    onMouseLeave={() => setIsPhotoHovered(false)}
-                    style={{
-                        transform: isPhotoHovered ? 'translateZ(50px) scale(1.08)' : 'none',
-                        boxShadow: isPhotoHovered 
-                            ? '0 16px 48px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3)'
-                            : '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    }}
+                    className="profile-photo-hover-zone"
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                 >
-                    <Image
-                        src="/leon.jpeg"
-                        alt={siteConfig.identity.name}
-                        width={140}
-                        height={140}
-                        className="profile-photo-live"
-                        priority
-                    />
+                    <div 
+                        className="profile-photo-wrapper-live"
+                        style={{
+                            transform: isPhotoHovered ? 'translateZ(50px) scale(1.08)' : 'scale(1)',
+                            boxShadow: isPhotoHovered 
+                                ? '0 16px 48px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3)'
+                                : '0 8px 32px rgba(0, 0, 0, 0.3)',
+                        }}
+                    >
+                        <Image
+                            src="/leon.jpeg"
+                            alt={siteConfig.identity.name}
+                            width={140}
+                            height={140}
+                            className="profile-photo-live"
+                            priority
+                        />
+                    </div>
                 </div>
 
                 <h3 className="profile-name-live">

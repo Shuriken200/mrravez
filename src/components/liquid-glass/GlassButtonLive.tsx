@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useCallback } from "react";
+import { ReactNode, useState, useCallback, useRef } from "react";
 
 interface GlassButtonLiveProps {
     icon: ReactNode;
@@ -17,8 +17,25 @@ export function GlassButtonLive({ icon, label, href, target, rel }: GlassButtonL
     const [isHovered, setIsHovered] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const [isPressed, setIsPressed] = useState(false);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const isActive = isHovered || isFocused || isPressed;
+
+    // Debounced hover handlers to prevent flickering at edges
+    const handleMouseEnter = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+        setIsHovered(true);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        // Small delay before removing hover state to prevent edge flickering
+        hoverTimeoutRef.current = setTimeout(() => {
+            setIsHovered(false);
+        }, 50);
+    }, []);
 
     // Handle click with animation delay on mobile
     const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -59,14 +76,20 @@ export function GlassButtonLive({ icon, label, href, target, rel }: GlassButtonL
                     }
                 `
             }} />
-            {/* Outer wrapper handles hover detection - its bounds stay stable */}
+            {/* Outer wrapper handles hover detection - its bounds stay stable even when inner content scales */}
             <div
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
                 style={{
                     position: 'relative',
                     width: '100%',
                     maxWidth: '420px',
+                    // Generous padding buffer to accommodate scale growth and prevent edge flickering
+                    // Using 8px provides extra safety margin beyond the ~4px scale growth
+                    padding: '8px',
+                    margin: '-8px',
+                    // Ensure the padding area catches pointer events
+                    pointerEvents: 'auto',
                 }}
             >
                 <a 
@@ -90,7 +113,11 @@ export function GlassButtonLive({ icon, label, href, target, rel }: GlassButtonL
                         textDecoration: 'none',
                         cursor: 'pointer',
                         transformStyle: 'preserve-3d',
-                        transform: isActive ? 'translateZ(50px) scale(1.05)' : 'none',
+                        // Transform origin ensures scaling is centered
+                        transformOrigin: 'center center',
+                        transform: isActive ? 'translateZ(50px) scale(1.05)' : 'scale(1)',
+                        // Use will-change for smoother animations and to prevent reflow
+                        willChange: 'transform',
                         transition: 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease',
                         boxShadow: isActive 
                             ? '0 12px 32px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3)'

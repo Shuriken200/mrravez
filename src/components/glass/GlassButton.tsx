@@ -75,6 +75,18 @@ export function GlassButton({ icon, label, href, target, rel }: GlassButtonProps
                         word-break: keep-all;
                         overflow-wrap: normal;
                     }
+                    .glass-button-link:focus-visible {
+                        background: rgba(255, 255, 255, 0.2);
+                        border: 1px solid rgba(255, 255, 255, 0.3);
+                        transform: translateZ(50px) scale(1.05);
+                        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+                    }
+                    .glass-button-link:focus-visible .glass-button-content {
+                        color: var(--color-maroon, #4E0506);
+                    }
+                    .glass-button-link:focus-visible .glass-button-arrow {
+                        transform: translateX(4px);
+                    }
                     
                     /* Hover styles - only on devices that support hover */
                     @media (hover: hover) {

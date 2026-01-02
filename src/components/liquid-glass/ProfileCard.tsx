@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { GlassCard } from "./GlassCard";
 import { siteConfig } from "@/config/site.config";
-import { useGitHubAvatar } from "@/hooks";
 
 export function ProfileCard() {
-    const { data: avatarUrl } = useGitHubAvatar(siteConfig.identity.githubUserId, 260);
+    const [isPhotoHovered, setIsPhotoHovered] = useState(false);
 
     return (
         <GlassCard
@@ -27,7 +27,16 @@ export function ProfileCard() {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 24px;
+                    gap: 20px;
+                    text-align: center;
+                    transform-style: preserve-3d;
+                }
+                .about-header {
+                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 600;
+                    color: var(--color-white);
+                    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
                     text-align: center;
                 }
                 .profile-photo-wrapper {
@@ -36,17 +45,15 @@ export function ProfileCard() {
                     height: 140px;
                     border-radius: 50%;
                     overflow: hidden;
-                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-                }
-                .profile-photo-wrapper:hover {
-                    transform: scale(1.05);
+                    transform-style: preserve-3d;
+                    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                                box-shadow 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
                 }
                 .profile-photo {
                     border-radius: 50%;
                     object-fit: cover;
                 }
-                .profile-title {
+                .profile-name {
                     margin: 0;
                     font-size: 32px;
                     font-weight: 700;
@@ -55,48 +62,65 @@ export function ProfileCard() {
                     letter-spacing: -0.5px;
                     line-height: 1.1;
                 }
-                .profile-subtitle {
-                    margin: 0;
-                    font-size: 18px;
-                    font-weight: 400;
-                    color: var(--color-white);
-                    opacity: 0.9;
-                    line-height: 1.6;
-                    max-width: 400px;
+                .about-info {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
                 }
-                .profile-welcome {
+                .about-role {
                     margin: 0;
                     font-size: 16px;
                     font-weight: 500;
                     color: var(--color-white);
-                    opacity: 0.8;
-                    font-style: italic;
+                    opacity: 0.9;
+                }
+                .about-org {
+                    margin: 0;
+                    font-size: 15px;
+                    font-weight: 400;
+                    color: var(--color-white);
+                    opacity: 0.75;
                 }
             `}} />
 
-
             <div className="profile-content">
-                {avatarUrl && (
-                    <div className="profile-photo-wrapper">
-                        <Image
-                            src={avatarUrl}
-                            alt={siteConfig.identity.name}
-                            width={140}
-                            height={140}
-                            className="profile-photo"
-                            unoptimized
-                            priority
-                        />
-                    </div>
-                )}
-
-                <h1 className="profile-title">
-                    {siteConfig.identity.name}
+                <h1 className="about-header">
+                    About
                 </h1>
 
-                <p className="profile-welcome">
-                    Welcome to my little corner of the internet
-                </p>
+                <div 
+                    className="profile-photo-wrapper"
+                    onMouseEnter={() => setIsPhotoHovered(true)}
+                    onMouseLeave={() => setIsPhotoHovered(false)}
+                    style={{
+                        transform: isPhotoHovered ? 'translateZ(50px) scale(1.08)' : 'none',
+                        boxShadow: isPhotoHovered 
+                            ? '0 16px 48px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3)'
+                            : '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    }}
+                >
+                    <Image
+                        src="/leon.jpeg"
+                        alt={siteConfig.identity.name}
+                        width={140}
+                        height={140}
+                        className="profile-photo"
+                        priority
+                    />
+                </div>
+
+                <h2 className="profile-name">
+                    {siteConfig.identity.name}
+                </h2>
+
+                <div className="about-info">
+                    <p className="about-role">
+                        Head Engineer — AV and IoT
+                    </p>
+                    <p className="about-org">
+                        University of Oslo
+                    </p>
+                </div>
             </div>
         </GlassCard>
     );

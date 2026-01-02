@@ -3,7 +3,7 @@
  */
 
 import { SCROLL_ZONES, RESTING_POINTS, SECTION_THRESHOLDS } from './constants';
-import type { SectionVisibility, GreetingVisibility, AllSectionVisibility } from './types';
+import type { SectionVisibility, GreetingVisibility, WelcomeVisibility, AllSectionVisibility } from './types';
 
 /**
  * Clamp a value between min and max
@@ -20,7 +20,7 @@ function calculateProgress(value: number, start: number, end: number): number {
 }
 
 /**
- * Calculate greeting visibility based on scroll progress
+ * Calculate greeting ("Hi!") visibility based on scroll progress
  */
 export function calculateGreetingVisibility(
     scrollProgress: number,
@@ -32,6 +32,35 @@ export function calculateGreetingVisibility(
 
     const { fadeStart, fadeEnd } = SCROLL_ZONES.greeting;
     const opacity = clamp(1 - (scrollProgress - fadeStart) / (fadeEnd - fadeStart), 0, 1);
+
+    return {
+        opacity,
+        visible: opacity > 0,
+    };
+}
+
+/**
+ * Calculate welcome text visibility based on scroll progress
+ * Fades in after "Hi!" starts fading, then fades out before profile card
+ */
+export function calculateWelcomeVisibility(
+    scrollProgress: number,
+    hasPassedGreeting: boolean
+): WelcomeVisibility {
+    if (hasPassedGreeting) {
+        return { opacity: 0, visible: false };
+    }
+
+    const { fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd } = SCROLL_ZONES.welcome;
+    
+    // Calculate fade in (0 to 1)
+    const fadeInProgress = clamp((scrollProgress - fadeInStart) / (fadeInEnd - fadeInStart), 0, 1);
+    
+    // Calculate fade out (1 to 0)
+    const fadeOutProgress = clamp(1 - (scrollProgress - fadeOutStart) / (fadeOutEnd - fadeOutStart), 0, 1);
+    
+    // Opacity is the minimum of fade in and fade out
+    const opacity = Math.min(fadeInProgress, fadeOutProgress);
 
     return {
         opacity,
@@ -174,6 +203,7 @@ export function calculateAllVisibility(
     isMobile: boolean
 ): AllSectionVisibility {
     const greeting = calculateGreetingVisibility(scrollProgress, hasPassedGreeting);
+    const welcome = calculateWelcomeVisibility(scrollProgress, hasPassedGreeting);
 
     const profileBase = calculateProfileVisibility(scrollProgress, isMobile);
     const linksBase = calculateLinksVisibility(scrollProgress, isMobile);
@@ -184,6 +214,7 @@ export function calculateAllVisibility(
 
     return {
         greeting,
+        welcome,
         profile: { ...profileBase, opacity: profileBase.opacity * jumpMultiplier },
         links: { ...linksBase, opacity: linksBase.opacity * jumpMultiplier },
         contact: { ...contactBase, opacity: contactBase.opacity * jumpMultiplier },

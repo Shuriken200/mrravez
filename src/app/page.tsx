@@ -75,9 +75,14 @@ export default function HomePage() {
                     <ThemeToggle />
                 </div>
 
-                {/* Greeting section ("Hi!") */}
+                {/* Greeting section ("Hi!" and "Welcome...") */}
                 {!hasPassedGreeting && (
-                    <GreetingSection stage={stage} visibility={visibility.greeting} theme={theme} />
+                    <GreetingSection
+                        stage={stage}
+                        greetingVisibility={visibility.greeting}
+                        welcomeVisibility={visibility.welcome}
+                        theme={theme}
+                    />
                 )}
 
                 {/* Card carousel (Profile, Links, Contact) */}

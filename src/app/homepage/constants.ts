@@ -29,10 +29,17 @@ export const STAGE_TIMINGS = {
 // Scroll zones for card visibility
 // Widened entry zones (0.35vh instead of 0.2vh) for smoother slide-in animations
 export const SCROLL_ZONES = {
-    // Greeting visibility
+    // "Hi!" greeting visibility - fades out first
     greeting: {
-        fadeStart: 0.2,
-        fadeEnd: 0.4,
+        fadeStart: 0.0,
+        fadeEnd: 0.15,
+    },
+    // "Welcome..." visibility - fades in as Hi! fades, then fades out before card
+    welcome: {
+        fadeInStart: 0.08,
+        fadeInEnd: 0.18,
+        fadeOutStart: 0.28,
+        fadeOutEnd: 0.45,
     },
     // Profile: entry 0.35-0.7, exit 0.95-1.25
     profile: {

@@ -27,8 +27,14 @@ export interface GreetingVisibility {
     visible: boolean;
 }
 
+export interface WelcomeVisibility {
+    opacity: number;
+    visible: boolean;
+}
+
 export interface AllSectionVisibility {
     greeting: GreetingVisibility;
+    welcome: WelcomeVisibility;
     profile: SectionVisibility;
     links: SectionVisibility;
     contact: SectionVisibility;

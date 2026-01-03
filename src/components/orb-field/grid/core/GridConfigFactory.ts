@@ -2,8 +2,8 @@
 // Grid Config Factory
 // =============================================================================
 
-import { DEFAULT_GRID_CONFIG, type GridSystemConfig } from '../config';
-import { type GridConfig } from './types';
+import { DEFAULT_GRID_CONFIG, type GridSystemConfig } from '../../shared/config';
+import { type GridConfig } from '../types';
 
 /**
  * Factory responsible for creating GridConfig instances.

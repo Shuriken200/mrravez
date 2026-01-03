@@ -3,15 +3,16 @@
 // =============================================================================
 
 // Core grid system
-export { SpatialGrid } from './core/SpatialGrid';
-export { GridConfigFactory } from './core/GridConfigFactory';
+export { SpatialGrid } from './grid/core/SpatialGrid';
+export { GridConfigFactory } from './grid/core/GridConfigFactory';
+export { OrbPhysics } from './orb/core/OrbPhysics';
 export { 
 	CELL_EMPTY, 
 	CELL_PROXIMITY, 
 	CELL_FILLED, 
-	type GridConfig, 
 	type CellState 
-} from './core/types';
+} from './shared/types';
+export { type GridConfig } from './grid/types';
 
 // Configuration
 export {
@@ -21,9 +22,13 @@ export {
 	type GridSystemConfig,
 	type GridRevealConfig,
 	type GridStyleConfig,
-} from './config';
+} from './shared/config';
 
 // Grid visualization
-export { GridView } from './visuals/GridView';
-export { GridRenderer } from './visuals/GridRenderer';
-export { GridAnimator } from './visuals/GridAnimator';
+export { default as GridView } from './OrbField';
+export { GridRenderer } from './grid/visuals/GridRenderer';
+export { GridAnimator } from './grid/visuals/GridAnimator';
+
+// Debugging
+export { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
+export { GridDebugPanel } from './debug-info/components/GridDebugPanel';

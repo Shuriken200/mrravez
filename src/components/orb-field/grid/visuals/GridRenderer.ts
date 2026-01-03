@@ -2,7 +2,11 @@
 // Grid Renderer
 // =============================================================================
 
-import { type GridRevealConfig, type GridStyleConfig } from '../config';
+import { type GridRevealConfig, type GridStyleConfig } from '../../shared/config';
+import { CELL_FILLED, CELL_PROXIMITY } from '../../shared/types';
+import { type Orb } from '../../orb/types';
+import { SpatialGrid } from '../core/SpatialGrid';
+import { type ViewportCells } from '../types';
 
 interface WindowSize {
 	width: number;
@@ -33,7 +37,10 @@ export class GridRenderer {
 		progress: number,
 		revealConfig: GridRevealConfig,
 		styleConfig: GridStyleConfig,
-		hoveredCell: { x: number; y: number } | null
+		hoveredCell: { x: number; y: number } | null,
+		grid: SpatialGrid | null = null,
+		currentLayer: number = 0,
+		orbs: Orb[] = []
 	) {
 		const { width, height } = windowSize;
 		const { startCellX, endCellX, startCellY, endCellY, cellSizeXPx, cellSizeYPx } = viewportCells;
@@ -45,9 +52,28 @@ export class GridRenderer {
 		const whiteStartY = fadeEndY - fadeInDistance;
 		
 		ctx.clearRect(0, 0, width, height);
+		
+		// 1. Draw Grid Content (Occupied Cells)
+		if (grid && progress >= 1) {
+			for (let cy = 0; cy <= (endCellY - startCellY); cy++) {
+				for (let cx = 0; cx <= (endCellX - startCellX); cx++) {
+					const cellX = startCellX + cx;
+					const cellY = startCellY + cy;
+					const state = grid.getCell(cellX, cellY, currentLayer);
+					
+					if (state !== 0) {
+						if (state === CELL_FILLED) {
+							ctx.fillStyle = 'rgba(255, 80, 80, 0.6)'; // Red-ish
+							ctx.fillRect(cx * cellSizeXPx, cy * cellSizeYPx, cellSizeXPx, cellSizeYPx);
+						}
+					}
+				}
+			}
+		}
+
 		ctx.lineWidth = lineWidth;
 		
-		// Draw grid lines
+		// 2. Draw Grid Lines
 		for (let cy = 0; cy <= (endCellY - startCellY); cy++) {
 			const y = cy * cellSizeYPx;
 			if (y > fadeEndY) continue;
@@ -109,6 +135,41 @@ export class GridRenderer {
 			ctx.strokeStyle = 'rgba(80, 200, 150, 0.6)';
 			ctx.lineWidth = hoverLineWidth;
 			ctx.strokeRect(hx, hy, cellSizeXPx, cellSizeYPx);
+		}
+		
+		// 4. Draw Orb Debug Visuals (White pixels and Vector Arrows)
+		// Only visible when reveal animation is complete and orbs are provided
+		if (orbs.length > 0 && progress >= 1) {
+			for (const orb of orbs) {
+				// Only show orbs on the current layer for visual clarity
+				if (orb.layer === currentLayer) {
+					// 4a. Draw True Position (1x1 white pixel)
+					ctx.fillStyle = '#FFFFFF';
+					ctx.fillRect(orb.pxX, orb.pxY, 1, 1);
+
+					// 4b. Draw Velocity Vector Arrow
+					const speed = Math.sqrt(orb.vx * orb.vx + orb.vy * orb.vy);
+					if (speed > 0) {
+						const arrowScale = 0.5; // Scale velocity for visualization
+						const endX = orb.pxX + orb.vx * arrowScale;
+						const endY = orb.pxY + orb.vy * arrowScale;
+
+						ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+						ctx.lineWidth = 1;
+						ctx.beginPath();
+						ctx.moveTo(orb.pxX, orb.pxY);
+						ctx.lineTo(endX, endY);
+						
+						// Simple arrow head
+						const angle = Math.atan2(orb.vy, orb.vx);
+						const headLen = 6;
+						ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI / 6), endY - headLen * Math.sin(angle - Math.PI / 6));
+						ctx.moveTo(endX, endY);
+						ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI / 6), endY - headLen * Math.sin(angle + Math.PI / 6));
+						ctx.stroke();
+					}
+				}
+			}
 		}
 	}
 }

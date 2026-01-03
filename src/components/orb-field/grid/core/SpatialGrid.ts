@@ -2,7 +2,8 @@
 // SpatialGrid - 3D Grid Data Structure
 // =============================================================================
 
-import { CELL_EMPTY, type CellState, type GridConfig } from './types';
+import { CELL_EMPTY, type CellState } from '../../shared/types';
+import { type GridConfig } from '../types';
 
 /**
  * 3D Spatial Grid for efficient collision detection and spatial queries.

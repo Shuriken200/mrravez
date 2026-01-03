@@ -35,35 +35,67 @@ export function GridView({
     const [currentLayer, setCurrentLayer] = useState(initialLayer);
     const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
     
+    // Store window dimensions to detect changes
+    const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+    
     // Animation state for roll-down effect
     const rollProgressRef = useRef(0);
     const animationRef = useRef<number | null>(null);
     const startTimeRef = useRef<number | null>(null);
     const isAnimatingRef = useRef(false);
+    const hasAnimatedRef = useRef(false);
     
-    // Initialize grid on mount (client-side only)
+    // Listen for resize to update windowSize
     useEffect(() => {
-        if (!visible) {
-            // Reset animation when hidden
-            rollProgressRef.current = 0;
-            startTimeRef.current = null;
-            isAnimatingRef.current = false;
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
-                animationRef.current = null;
-            }
-            return;
-        }
+        if (typeof window === 'undefined') return;
+        
+        const handleResize = () => {
+            setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+        };
+        
+        // Initial size
+        handleResize();
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    
+    // Initialize grid ONLY when window size changes
+    useEffect(() => {
+        if (windowSize.width === 0 || windowSize.height === 0) return;
         
         const config = createGridConfig();
         if (!config) return;
         
         const newGrid = new SpatialGrid(config);
         
+        // Defer state updates to avoid cascading renders
         queueMicrotask(() => {
             setGridConfig(config);
             setGrid(newGrid);
+            
+            // If we already animated, skip reveal on resize
+            if (hasAnimatedRef.current) {
+                rollProgressRef.current = 1;
+            }
         });
+    }, [windowSize]);
+    
+    // Reset animation ONLY when visibility toggles from off to on
+    useEffect(() => {
+        if (visible && !hasAnimatedRef.current && !isAnimatingRef.current) {
+            rollProgressRef.current = 0;
+            startTimeRef.current = null;
+        } else if (!visible) {
+            hasAnimatedRef.current = false;
+            isAnimatingRef.current = false;
+            rollProgressRef.current = 0;
+            startTimeRef.current = null;
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+        }
     }, [visible]);
     
     // Calculate viewport cell range
@@ -90,38 +122,113 @@ export function GridView({
         };
     }, [gridConfig]);
     
-    // Animation and drawing loop
+    // Main draw function
+    const draw = useCallback((ctx: CanvasRenderingContext2D, revealProgress: number) => {
+        if (!grid || !gridConfig || !viewportCells || !windowSize.width) return;
+        
+        const { width, height } = windowSize;
+        const { startCellX, endCellX, startCellY, endCellY, cellSizePx } = viewportCells;
+        
+        const cellsInViewX = endCellX - startCellX;
+        const cellsInViewY = endCellY - startCellY;
+        
+        // Colors
+        const baseGreyR = 100;
+        const baseGreyG = 100;
+        const baseGreyB = 130;
+        
+        const whiteToGreyDistance = 200;
+        const fadeInDistance = 150;
+        
+        // Animation positions
+        const startY = -200;
+        const endY = height + 500;
+        const fadeEndY = startY + revealProgress * (endY - startY);
+        const whiteStartY = fadeEndY - fadeInDistance;
+        
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineWidth = 0.5;
+        
+        for (let cy = 0; cy <= cellsInViewY; cy++) {
+            const y = cy * cellSizePx;
+            if (y > fadeEndY) continue;
+            
+            let revealOpacity = 1;
+            if (y > whiteStartY) {
+                revealOpacity = (fadeEndY - y) / fadeInDistance;
+                revealOpacity = Math.max(0, Math.min(1, revealOpacity));
+                revealOpacity = revealOpacity * revealOpacity * (3 - 2 * revealOpacity);
+            }
+            
+            if (revealOpacity < 0.01) continue;
+            
+            const distanceAboveWhite = whiteStartY - y;
+            let greyMix = 0;
+            if (distanceAboveWhite > 0) {
+                greyMix = Math.min(1, distanceAboveWhite / whiteToGreyDistance);
+                greyMix = greyMix * greyMix * (3 - 2 * greyMix);
+            }
+            
+            const r = Math.round(255 - (255 - baseGreyR) * greyMix);
+            const g = Math.round(255 - (255 - baseGreyG) * greyMix);
+            const b = Math.round(255 - (255 - baseGreyB) * greyMix);
+            
+            const baseAlphaVal = 0.7 - 0.35 * greyMix;
+            const alpha = baseAlphaVal * revealOpacity;
+            
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            
+            // Horizontal line
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+            
+            // Vertical lines
+            for (let cx = 0; cx <= cellsInViewX; cx++) {
+                const x = cx * cellSizePx;
+                const nextY = (cy + 1) * cellSizePx;
+                const lineEndY = Math.min(nextY, fadeEndY);
+                
+                if (lineEndY > y) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, lineEndY);
+                    ctx.stroke();
+                }
+            }
+        }
+        
+        // Highlight hovered cell
+        if (revealProgress >= 1 && hoveredCell) {
+            const hx = (hoveredCell.x - startCellX) * cellSizePx;
+            const hy = (hoveredCell.y - startCellY) * cellSizePx;
+            ctx.fillStyle = 'rgba(80, 200, 150, 0.2)';
+            ctx.fillRect(hx, hy, cellSizePx, cellSizePx);
+            ctx.strokeStyle = 'rgba(80, 200, 150, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(hx, hy, cellSizePx, cellSizePx);
+        }
+    }, [grid, gridConfig, viewportCells, windowSize, hoveredCell]);
+    
+    // Animation/Update Loop
     useEffect(() => {
-        if (!visible || !grid || !gridConfig || !viewportCells || !canvasRef.current) return;
+        if (!visible || !grid || !gridConfig || !viewportCells || !canvasRef.current || windowSize.width === 0) return;
         
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         
-        const { startCellX, endCellX, startCellY, endCellY, cellSizePx } = viewportCells;
+        // Sync canvas size
+        canvas.width = windowSize.width;
+        canvas.height = windowSize.height;
         
-        // Set canvas size
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        if (hasAnimatedRef.current) {
+            draw(ctx, 1);
+            return;
+        }
         
-        const cellsInViewX = endCellX - startCellX;
-        const cellsInViewY = endCellY - startCellY;
-        
-        // The base grey color for grid lines
-        const baseGreyR = 100;
-        const baseGreyG = 100;
-        const baseGreyB = 130;
-        
-        // Distance for white-to-grey gradient (from bottom)
-        const whiteToGreyDistance = 200;
-        // Distance for fade-in from nothing to white (at the very bottom)
-        const fadeInDistance = 150;
-        
-        // Start animation
         isAnimatingRef.current = true;
-        startTimeRef.current = null;
         
         const animate = (timestamp: number) => {
             if (!isAnimatingRef.current) return;
@@ -131,106 +238,18 @@ export function GridView({
             }
             
             const elapsed = timestamp - startTimeRef.current;
-            const duration = 1500; // 1.5 seconds for the roll
+            const duration = 1500;
             const progress = Math.min(1, elapsed / duration);
-            
-            // Ease out cubic for smooth deceleration
             const eased = 1 - Math.pow(1 - progress, 3);
+            
             rollProgressRef.current = eased;
-            
-            // The Y position where the fade ENDS (fully invisible below this)
-            // Starts above the screen (-200) and ends below the screen (height + 500)
-            const startY = -200;
-            const endY = height + 500;
-            const fadeEndY = startY + eased * (endY - startY);
-            
-            // The Y position where white starts (fade-in zone is between fadeEndY and whiteStartY)
-            const whiteStartY = fadeEndY - fadeInDistance;
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, width, height);
-            
-            // Draw grid lines
-            ctx.lineWidth = 0.5;
-            
-            for (let cy = 0; cy <= cellsInViewY; cy++) {
-                const y = cy * cellSizePx;
-                
-                // Skip rows completely below the fade end
-                if (y > fadeEndY) continue;
-                
-                // Calculate opacity based on position relative to fade zone
-                let opacity = 1;
-                if (y > whiteStartY) {
-                    // In the fade-in zone: fade from 0 (at fadeEndY) to 1 (at whiteStartY)
-                    opacity = (fadeEndY - y) / fadeInDistance;
-                    opacity = Math.max(0, Math.min(1, opacity));
-                    // Smoothstep for gradual fade
-                    opacity = opacity * opacity * (3 - 2 * opacity);
-                }
-                
-                // Skip if invisible
-                if (opacity < 0.01) continue;
-                
-                // Calculate how far above the white zone we are
-                const distanceAboveWhite = whiteStartY - y;
-                
-                // Calculate white-to-grey mix (0 = white, 1 = grey)
-                let greyMix = 0;
-                if (distanceAboveWhite > 0) {
-                    greyMix = distanceAboveWhite / whiteToGreyDistance;
-                    greyMix = Math.min(1, greyMix);
-                    // Smoothstep for gradual transition
-                    greyMix = greyMix * greyMix * (3 - 2 * greyMix);
-                }
-                
-                // Interpolate color: white (255,255,255) -> grey (baseGreyR,G,B)
-                const r = Math.round(255 - (255 - baseGreyR) * greyMix);
-                const g = Math.round(255 - (255 - baseGreyG) * greyMix);
-                const b = Math.round(255 - (255 - baseGreyB) * greyMix);
-                
-                // Alpha: higher when white, lower when grey, multiplied by fade-in opacity
-                const baseAlphaVal = 0.7 - 0.35 * greyMix; // 0.7 when white, 0.35 when grey
-                const alpha = baseAlphaVal * opacity;
-                
-                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                
-                // Draw horizontal line
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-                
-                // Draw vertical lines for this row (down to next row or fade boundary)
-                for (let cx = 0; cx <= cellsInViewX; cx++) {
-                    const x = cx * cellSizePx;
-                    const nextY = (cy + 1) * cellSizePx;
-                    const lineEndY = Math.min(nextY, fadeEndY);
-                    
-                    if (lineEndY > y) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, y);
-                        ctx.lineTo(x, lineEndY);
-                        ctx.stroke();
-                    }
-                }
-            }
-            
-            // Highlight hovered cell (only after animation completes)
-            if (progress >= 1 && hoveredCell) {
-                const hx = (hoveredCell.x - startCellX) * cellSizePx;
-                const hy = (hoveredCell.y - startCellY) * cellSizePx;
-                ctx.fillStyle = 'rgba(80, 200, 150, 0.2)';
-                ctx.fillRect(hx, hy, cellSizePx, cellSizePx);
-                ctx.strokeStyle = 'rgba(80, 200, 150, 0.6)';
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(hx, hy, cellSizePx, cellSizePx);
-            }
+            draw(ctx, eased);
             
             if (progress < 1) {
                 animationRef.current = requestAnimationFrame(animate);
             } else {
                 isAnimatingRef.current = false;
+                hasAnimatedRef.current = true;
             }
         };
         
@@ -242,53 +261,7 @@ export function GridView({
                 cancelAnimationFrame(animationRef.current);
             }
         };
-    }, [visible, grid, gridConfig, viewportCells, hoveredCell]);
-    
-    // Redraw on hover (only after animation)
-    useEffect(() => {
-        if (!visible || !canvasRef.current || !viewportCells || rollProgressRef.current < 1) return;
-        
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        
-        const { startCellX, endCellX, startCellY, endCellY, cellSizePx } = viewportCells;
-        const width = canvas.width;
-        const cellsInViewX = endCellX - startCellX;
-        const cellsInViewY = endCellY - startCellY;
-        
-        // Redraw grid
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = 'rgba(100, 100, 130, 0.35)';
-        ctx.lineWidth = 0.5;
-        
-        for (let cy = 0; cy <= cellsInViewY; cy++) {
-            const y = cy * cellSizePx;
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-            
-            for (let cx = 0; cx <= cellsInViewX; cx++) {
-                const x = cx * cellSizePx;
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x, Math.min((cy + 1) * cellSizePx, canvas.height));
-                ctx.stroke();
-            }
-        }
-        
-        // Draw hovered cell
-        if (hoveredCell) {
-            const hx = (hoveredCell.x - startCellX) * cellSizePx;
-            const hy = (hoveredCell.y - startCellY) * cellSizePx;
-            ctx.fillStyle = 'rgba(80, 200, 150, 0.2)';
-            ctx.fillRect(hx, hy, cellSizePx, cellSizePx);
-            ctx.strokeStyle = 'rgba(80, 200, 150, 0.6)';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(hx, hy, cellSizePx, cellSizePx);
-        }
-    }, [visible, viewportCells, hoveredCell]);
+    }, [visible, grid, gridConfig, viewportCells, windowSize, draw]);
     
     // Handle mouse move for cell hover
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -371,4 +344,3 @@ export function GridView({
 }
 
 export default GridView;
-

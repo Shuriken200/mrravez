@@ -102,22 +102,25 @@ export function GridView({
     const viewportCells = useMemo(() => {
         if (!gridConfig) return null;
         
-        const { cellSizeCm, viewportMinXCm, viewportMaxXCm, viewportMinYCm, viewportMaxYCm, minXCm, minYCm, pixelsPerCm } = gridConfig;
+        const { cellSizeXCm, cellSizeYCm, viewportMinXCm, viewportMaxXCm, viewportMinYCm, viewportMaxYCm, minXCm, minYCm, pixelsPerCm } = gridConfig;
         
-        const startCellX = Math.floor((viewportMinXCm - minXCm) / cellSizeCm);
-        const endCellX = Math.ceil((viewportMaxXCm - minXCm) / cellSizeCm);
-        const startCellY = Math.floor((viewportMinYCm - minYCm) / cellSizeCm);
-        const endCellY = Math.ceil((viewportMaxYCm - minYCm) / cellSizeCm);
+        const startCellX = Math.round((viewportMinXCm - minXCm) / cellSizeXCm);
+        const endCellX = Math.round((viewportMaxXCm - minXCm) / cellSizeXCm);
+        const startCellY = Math.round((viewportMinYCm - minYCm) / cellSizeYCm);
+        const endCellY = Math.round((viewportMaxYCm - minYCm) / cellSizeYCm);
         
-        const cellSizePx = cellSizeCm * pixelsPerCm;
+        const cellSizeXPx = cellSizeXCm * pixelsPerCm;
+        const cellSizeYPx = cellSizeYCm * pixelsPerCm;
         
         return {
             startCellX,
             endCellX,
             startCellY,
             endCellY,
-            cellSizePx,
-            cellSizeCm,
+            cellSizeXPx,
+            cellSizeYPx,
+            cellSizeXCm,
+            cellSizeYCm,
             pixelsPerCm,
         };
     }, [gridConfig]);
@@ -127,7 +130,7 @@ export function GridView({
         if (!grid || !gridConfig || !viewportCells || !windowSize.width) return;
         
         const { width, height } = windowSize;
-        const { startCellX, endCellX, startCellY, endCellY, cellSizePx } = viewportCells;
+        const { startCellX, endCellX, startCellY, endCellY, cellSizeXPx, cellSizeYPx } = viewportCells;
         
         const cellsInViewX = endCellX - startCellX;
         const cellsInViewY = endCellY - startCellY;
@@ -150,7 +153,7 @@ export function GridView({
         ctx.lineWidth = 0.5;
         
         for (let cy = 0; cy <= cellsInViewY; cy++) {
-            const y = cy * cellSizePx;
+            const y = cy * cellSizeYPx;
             if (y > fadeEndY) continue;
             
             let revealOpacity = 1;
@@ -184,10 +187,10 @@ export function GridView({
             ctx.lineTo(width, y);
             ctx.stroke();
             
-            // Vertical lines
+            // Vertical lines for this row
             for (let cx = 0; cx <= cellsInViewX; cx++) {
-                const x = cx * cellSizePx;
-                const nextY = (cy + 1) * cellSizePx;
+                const x = cx * cellSizeXPx;
+                const nextY = (cy + 1) * cellSizeYPx;
                 const lineEndY = Math.min(nextY, fadeEndY);
                 
                 if (lineEndY > y) {
@@ -201,13 +204,13 @@ export function GridView({
         
         // Highlight hovered cell
         if (revealProgress >= 1 && hoveredCell) {
-            const hx = (hoveredCell.x - startCellX) * cellSizePx;
-            const hy = (hoveredCell.y - startCellY) * cellSizePx;
+            const hx = (hoveredCell.x - startCellX) * cellSizeXPx;
+            const hy = (hoveredCell.y - startCellY) * cellSizeYPx;
             ctx.fillStyle = 'rgba(80, 200, 150, 0.2)';
-            ctx.fillRect(hx, hy, cellSizePx, cellSizePx);
+            ctx.fillRect(hx, hy, cellSizeXPx, cellSizeYPx);
             ctx.strokeStyle = 'rgba(80, 200, 150, 0.6)';
             ctx.lineWidth = 1.5;
-            ctx.strokeRect(hx, hy, cellSizePx, cellSizePx);
+            ctx.strokeRect(hx, hy, cellSizeXPx, cellSizeYPx);
         }
     }, [grid, gridConfig, viewportCells, windowSize, hoveredCell]);
     
@@ -267,13 +270,13 @@ export function GridView({
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         if (!viewportCells || !grid || !gridConfig || rollProgressRef.current < 1) return;
         
-        const { startCellX, startCellY, cellSizePx, cellSizeCm } = viewportCells;
+        const { startCellX, startCellY, cellSizeXPx, cellSizeYPx, cellSizeXCm, cellSizeYCm } = viewportCells;
         
-        const cellX = startCellX + Math.floor(e.clientX / cellSizePx);
-        const cellY = startCellY + Math.floor(e.clientY / cellSizePx);
+        const cellX = startCellX + Math.floor(e.clientX / cellSizeXPx);
+        const cellY = startCellY + Math.floor(e.clientY / cellSizeYPx);
         
-        const worldX = gridConfig.minXCm + cellX * cellSizeCm;
-        const worldY = gridConfig.minYCm + cellY * cellSizeCm;
+        const worldX = gridConfig.minXCm + cellX * cellSizeXCm;
+        const worldY = gridConfig.minYCm + cellY * cellSizeYCm;
         
         setHoveredCell({ x: cellX, y: cellY, worldX, worldY });
     }, [viewportCells, grid, gridConfig]);
@@ -300,8 +303,8 @@ export function GridView({
             {gridConfig && viewportCells && (
                 <div style={{
                     position: 'fixed',
-                    bottom: 16,
-                    left: 16,
+                    top: 16,
+                    right: 16,
                     padding: 12,
                     background: 'rgba(0,0,0,0.7)',
                     border: '1px solid #333',
@@ -316,7 +319,7 @@ export function GridView({
                         <strong>Grid:</strong> {gridConfig.cellsX}×{gridConfig.cellsY}×{gridConfig.layers}
                     </div>
                     <div style={{ marginBottom: 4 }}>
-                        <strong>Cell:</strong> {gridConfig.cellSizeCm.toFixed(2)}cm
+                        <strong>Cell:</strong> {gridConfig.cellSizeXCm.toFixed(2)}×{gridConfig.cellSizeYCm.toFixed(2)}cm
                     </div>
                     <div style={{ marginBottom: 6 }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

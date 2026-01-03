@@ -27,8 +27,10 @@ export interface GridConfig {
     cellsY: number;
     /** Number of depth layers (Z direction) */
     layers: number;
-    /** Size of each cell in centimeters */
-    cellSizeCm: number;
+    /** Cell size in X direction (cm) */
+    cellSizeXCm: number;
+    /** Cell size in Y direction (cm) */
+    cellSizeYCm: number;
     
     // Grid bounds in centimeters (world coordinates)
     /** Minimum X coordinate (negative, extends left of viewport) */
@@ -75,38 +77,38 @@ export function createGridConfig(): GridConfig | null {
     const screenWidthCm = window.innerWidth * cmPerPixel;
     const screenHeightCm = window.innerHeight * cmPerPixel;
     
-    // Target cell size: approximately 1cm
-    const targetCellSizeCm = 1.0;
+    // Target cell size: approximately 0.5cm (denser grid)
+    const targetCellSizeCm = 0.5;
     
-    // Grid extends 2x beyond screen in each direction
-    // Total: 5x screen in each dimension (2 left + 1 screen + 2 right)
-    const extensionMultiplier = 2;
+    // Calculate exact number of cells that fit in the viewport for each axis
+    const cellsXPerViewport = Math.round(screenWidthCm / targetCellSizeCm);
+    const cellsYPerViewport = Math.round(screenHeightCm / targetCellSizeCm);
     
-    const totalWidthCm = screenWidthCm * (1 + 2 * extensionMultiplier);
-    const totalHeightCm = screenHeightCm * (1 + 2 * extensionMultiplier);
+    // Recalculate actual cell sizes to fit perfectly in viewport on both axes
+    const cellSizeXCm = screenWidthCm / cellsXPerViewport;
+    const cellSizeYCm = screenHeightCm / cellsYPerViewport;
     
-    // Calculate grid cell counts
-    const cellsX = Math.ceil(totalWidthCm / targetCellSizeCm);
-    const cellsY = Math.ceil(totalHeightCm / targetCellSizeCm);
-    
-    // Actual cell size (may differ slightly from target to fit evenly)
-    const cellSizeCm = totalWidthCm / cellsX;
+    // Total cell counts (3x the viewport cells for 3x3 grid)
+    const cellsX = cellsXPerViewport * 3;
+    const cellsY = cellsYPerViewport * 3;
     
     // Depth layers - 20 layers provides good depth variation
     const layers = 20;
     
     // Grid bounds (world coordinates)
-    // Viewport is at the center of the grid
-    const minXCm = -screenWidthCm * extensionMultiplier;
-    const maxXCm = screenWidthCm * (1 + extensionMultiplier);
-    const minYCm = -screenHeightCm * extensionMultiplier;
-    const maxYCm = screenHeightCm * (1 + extensionMultiplier);
+    // Viewport is at (0,0) to (screenWidthCm, screenHeightCm)
+    // Grid starts 1 viewport width to the left and 1 above
+    const minXCm = -screenWidthCm;
+    const maxXCm = screenWidthCm * 2;
+    const minYCm = -screenHeightCm;
+    const maxYCm = screenHeightCm * 2;
     
     return {
         cellsX,
         cellsY,
         layers,
-        cellSizeCm,
+        cellSizeXCm,
+        cellSizeYCm,
         minXCm,
         maxXCm,
         minYCm,
@@ -188,8 +190,8 @@ export class SpatialGrid {
         const offsetY = yCm - cfg.minYCm;
         
         // Convert to cell coordinates
-        const cellX = Math.floor(offsetX / cfg.cellSizeCm);
-        const cellY = Math.floor(offsetY / cfg.cellSizeCm);
+        const cellX = Math.floor(offsetX / cfg.cellSizeXCm);
+        const cellY = Math.floor(offsetY / cfg.cellSizeYCm);
         const clampedLayer = Math.max(0, Math.min(cfg.layers - 1, Math.round(layer)));
         
         return { cellX, cellY, layer: clampedLayer };
@@ -202,8 +204,8 @@ export class SpatialGrid {
     gridToWorld(cellX: number, cellY: number, layer: number): { xCm: number; yCm: number; layer: number } {
         const cfg = this.config;
         
-        const xCm = cfg.minXCm + (cellX + 0.5) * cfg.cellSizeCm;
-        const yCm = cfg.minYCm + (cellY + 0.5) * cfg.cellSizeCm;
+        const xCm = cfg.minXCm + (cellX + 0.5) * cfg.cellSizeXCm;
+        const yCm = cfg.minYCm + (cellY + 0.5) * cfg.cellSizeYCm;
         
         return { xCm, yCm, layer };
     }

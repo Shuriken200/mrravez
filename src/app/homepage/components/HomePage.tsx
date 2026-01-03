@@ -1,11 +1,10 @@
 "use client";
 
 import { useTheme } from "@/components/providers";
-import { OrbField } from "@/components/orb-field";
 import { ScrollDotIndicator } from "@/components/ui/ScrollDotIndicator";
+import { GridView } from "@/components/orb-field";
 import {
     useAnimationStages,
-    useMousePosition,
     useCardTransition,
     useSectionVisibility,
 } from "../hooks";
@@ -34,16 +33,12 @@ export function HomePage({ initialSection }: HomePageProps) {
     // Animation stage management (intro sequence)
     const { stage, isReady } = useAnimationStages({ skipAnimation });
 
-    // Mouse position for orb field interaction
-    const mousePos = useMousePosition();
-
     // Unified card transition system - handles scroll, keyboard, dots, touch
     const {
         scrollProgress,
         activeSection,
         hasPassedGreeting,
         isMobile,
-        scrollDelta,
         handleDotClick,
     } = useCardTransition({ enabled: isReady, initialSection });
 
@@ -76,13 +71,13 @@ export function HomePage({ initialSection }: HomePageProps) {
                 }
             `}</style>
 
+            {/* 3D Spatial Grid */}
+            <GridView visible={stage >= 2} />
+
             <main
                 className={`${styles.homepage} ${stage >= 2 ? styles.homepagePopped : ""}`}
                 style={{ background: homepageBackground }}
             >
-                {/* Background orb field - reacts to scroll */}
-                <OrbField visible={stage >= 2} mouseX={mousePos.x} mouseY={mousePos.y} scrollDelta={scrollDelta} isMobile={isMobile} />
-
                 {/* Greeting section ("Hi!" and "Welcome...") - only show if not skipping */}
                 {!skipAnimation && stage < 7 && (
                     <GreetingSection

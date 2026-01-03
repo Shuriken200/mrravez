@@ -1,5 +1,11 @@
-import { useEffect, useState } from "react";
-import { clamp } from "@/components/orb-field/utils";
+import { useEffect, useState, useRef } from "react";
+
+/**
+ * Clamp a value between min and max
+ */
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
 
 interface DeviceOrientation {
     tiltX: number;
@@ -7,17 +13,55 @@ interface DeviceOrientation {
     hasPermission: boolean;
 }
 
+// Throttle interval in ms (20fps = 50ms between updates)
+const THROTTLE_INTERVAL_MS = 50;
+
 export function useDeviceOrientation(): DeviceOrientation {
     const [orientation, setOrientation] = useState({ beta: 0, gamma: 0 });
     const [hasPermission, setHasPermission] = useState(false);
+    
+    // Ref to track last update time for throttling
+    const lastUpdateRef = useRef<number>(0);
+    // Ref to store pending orientation data
+    const pendingOrientationRef = useRef<{ beta: number; gamma: number } | null>(null);
+    // Ref for throttle timeout
+    const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         const handleOrientation = (e: DeviceOrientationEvent) => {
-            if (e.beta !== null && e.gamma !== null) {
-                setOrientation({
-                    beta: clamp(e.beta, -45, 45),
-                    gamma: clamp(e.gamma, -45, 45),
-                });
+            if (e.beta === null || e.gamma === null) return;
+            
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastUpdateRef.current;
+            
+            // Store the latest orientation data
+            pendingOrientationRef.current = {
+                beta: clamp(e.beta, -45, 45),
+                gamma: clamp(e.gamma, -45, 45),
+            };
+            
+            // If enough time has passed, update immediately
+            if (timeSinceLastUpdate >= THROTTLE_INTERVAL_MS) {
+                lastUpdateRef.current = now;
+                setOrientation(pendingOrientationRef.current);
+                pendingOrientationRef.current = null;
+                
+                // Clear any pending timeout
+                if (throttleTimeoutRef.current) {
+                    clearTimeout(throttleTimeoutRef.current);
+                    throttleTimeoutRef.current = null;
+                }
+            } else if (!throttleTimeoutRef.current) {
+                // Schedule an update for when the throttle period ends
+                const delay = THROTTLE_INTERVAL_MS - timeSinceLastUpdate;
+                throttleTimeoutRef.current = setTimeout(() => {
+                    if (pendingOrientationRef.current) {
+                        lastUpdateRef.current = Date.now();
+                        setOrientation(pendingOrientationRef.current);
+                        pendingOrientationRef.current = null;
+                    }
+                    throttleTimeoutRef.current = null;
+                }, delay);
             }
         };
         
@@ -53,6 +97,9 @@ export function useDeviceOrientation(): DeviceOrientation {
         return () => {
             window.removeEventListener('deviceorientation', handleOrientation);
             window.removeEventListener('touchstart', handleFirstTouch);
+            if (throttleTimeoutRef.current) {
+                clearTimeout(throttleTimeoutRef.current);
+            }
         };
     }, []);
     
@@ -61,5 +108,3 @@ export function useDeviceOrientation(): DeviceOrientation {
     
     return { tiltX, tiltY, hasPermission };
 }
-
-

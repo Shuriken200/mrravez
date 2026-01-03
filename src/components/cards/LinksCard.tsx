@@ -1,6 +1,6 @@
 "use client";
 
-import { GlassCard, GlassButton } from "@/components/glass";
+import { GlassButton } from "@/components/glass";
 
 const links = [
     { label: "UiO Profile", href: "https://people.uio.no/leon", icon: "uio" },
@@ -53,53 +53,13 @@ function getIcon(iconType: string) {
     }
 }
 
-interface LinksCardProps {
-    opacity?: number;
-    entryProgress?: number;
-    exitProgress?: number;
-    mobileOffset?: number;
-    mobileScale?: number;
-    wheelRotateY?: number;
-    wheelTranslateX?: number;
-    wheelTranslateZ?: number;
-    style?: React.CSSProperties;
-}
-
-export function LinksCard({ 
-    opacity = 1, 
-    entryProgress = 1, 
-    exitProgress = 0, 
-    mobileOffset = 0, 
-    mobileScale = 1, 
-    wheelRotateY = 0,
-    wheelTranslateX = 0,
-    wheelTranslateZ = 0,
-    style 
-}: LinksCardProps) {
+/**
+ * LinksCard - Pure content component
+ * Only handles the card's content, no animation/transition logic
+ */
+export function LinksCard() {
     return (
-        <GlassCard
-            style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                zIndex: 10,
-                maxWidth: "480px",
-                width: "calc(100% - 32px)",
-                ...style,
-            }}
-            padding="clamp(16px, 4vw, 30px)"
-            borderRadius={60}
-            mobileBorderRadius={40}
-            mobilePadding="20px"
-            opacity={opacity}
-            entryProgress={entryProgress}
-            exitProgress={exitProgress}
-            mobileOffset={mobileOffset}
-            mobileScale={mobileScale}
-            wheelRotateY={wheelRotateY}
-            wheelTranslateX={wheelTranslateX}
-            wheelTranslateZ={wheelTranslateZ}
-        >
+        <>
             <h2 style={{
                 margin: '0 0 8px 0',
                 fontSize: '24px',
@@ -128,7 +88,6 @@ export function LinksCard({
                     />
                 ))}
             </div>
-        </GlassCard>
+        </>
     );
 }
-

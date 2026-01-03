@@ -1,6 +1,6 @@
 "use client";
 
-import { GlassCard, GlassButton } from "@/components/glass";
+import { GlassButton } from "@/components/glass";
 import { siteConfig } from "@/config/site.config";
 
 function EmailIcon() {
@@ -12,50 +12,13 @@ function EmailIcon() {
     );
 }
 
-interface ContactCardProps {
-    opacity?: number;
-    entryProgress?: number;
-    mobileOffset?: number;
-    mobileScale?: number;
-    wheelRotateY?: number;
-    wheelTranslateX?: number;
-    wheelTranslateZ?: number;
-    style?: React.CSSProperties;
-}
-
-export function ContactCard({ 
-    opacity = 1, 
-    entryProgress = 1, 
-    mobileOffset = 0, 
-    mobileScale = 1, 
-    wheelRotateY = 0,
-    wheelTranslateX = 0,
-    wheelTranslateZ = 0,
-    style 
-}: ContactCardProps) {
+/**
+ * ContactCard - Pure content component
+ * Only handles the card's content, no animation/transition logic
+ */
+export function ContactCard() {
     return (
-        <GlassCard
-            style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                zIndex: 10,
-                maxWidth: "480px",
-                width: "calc(100% - 32px)",
-                ...style,
-            }}
-            padding="clamp(16px, 4vw, 30px)"
-            borderRadius={60}
-            mobileBorderRadius={40}
-            mobilePadding="20px"
-            opacity={opacity}
-            entryProgress={entryProgress}
-            mobileOffset={mobileOffset}
-            mobileScale={mobileScale}
-            wheelRotateY={wheelRotateY}
-            wheelTranslateX={wheelTranslateX}
-            wheelTranslateZ={wheelTranslateZ}
-        >
+        <>
             <h2 style={{
                 margin: '0 0 8px 0',
                 fontSize: '24px',
@@ -109,7 +72,6 @@ export function ContactCard({
                     />
                 </div>
             </div>
-        </GlassCard>
+        </>
     );
 }
-

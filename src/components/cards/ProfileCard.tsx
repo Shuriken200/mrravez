@@ -2,32 +2,13 @@
 
 import Image from "next/image";
 import { useState, useRef, useCallback } from "react";
-import { GlassCard } from "@/components/glass";
 import { siteConfig } from "@/config/site.config";
 
-interface ProfileCardProps {
-    opacity?: number;
-    entryProgress?: number;
-    exitProgress?: number;
-    mobileOffset?: number;
-    mobileScale?: number;
-    wheelRotateY?: number;
-    wheelTranslateX?: number;
-    wheelTranslateZ?: number;
-    style?: React.CSSProperties;
-}
-
-export function ProfileCard({ 
-    opacity = 1, 
-    entryProgress = 1, 
-    exitProgress = 0, 
-    mobileOffset = 0, 
-    mobileScale = 1, 
-    wheelRotateY = 0,
-    wheelTranslateX = 0,
-    wheelTranslateZ = 0,
-    style 
-}: ProfileCardProps) {
+/**
+ * ProfileCard - Pure content component
+ * Only handles the card's content, no animation/transition logic
+ */
+export function ProfileCard() {
     const [isPhotoHovered, setIsPhotoHovered] = useState(false);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,27 +29,7 @@ export function ProfileCard({
     }, []);
 
     return (
-        <GlassCard
-            style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                zIndex: 10,
-                maxWidth: "480px",
-                width: "calc(100% - 32px)",
-                ...style,
-            }}
-            padding="clamp(24px, 5vw, 40px)"
-            borderRadius={60}
-            opacity={opacity}
-            entryProgress={entryProgress}
-            exitProgress={exitProgress}
-            mobileOffset={mobileOffset}
-            mobileScale={mobileScale}
-            wheelRotateY={wheelRotateY}
-            wheelTranslateX={wheelTranslateX}
-            wheelTranslateZ={wheelTranslateZ}
-        >
+        <>
             <style suppressHydrationWarning dangerouslySetInnerHTML={{
                 __html: `
                 .profile-content {
@@ -193,7 +154,6 @@ export function ProfileCard({
                     </p>
                 </div>
             </div>
-        </GlassCard>
+        </>
     );
 }
-

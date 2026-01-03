@@ -405,11 +405,16 @@ export function useCardTransition({
             const currentX = e.touches[0].clientX;
             const now = performance.now();
             const deltaX = touchStartRef.current.x - currentX;
+            const viewportWidth = window.innerWidth;
 
+            // Calculate touch delta for orb reaction BEFORE updating lastX
+            const touchDelta = (currentX - touchStartRef.current.lastX) / viewportWidth;
+            scrollDeltaRef.current = Math.max(-1, Math.min(1, -touchDelta * 3));
+
+            // Now update lastX and lastTime for velocity tracking
             touchStartRef.current.lastX = currentX;
             touchStartRef.current.lastTime = now;
 
-            const viewportWidth = window.innerWidth;
             const progressDelta = (deltaX / viewportWidth) * 1;
 
             const startSection = touchStartRef.current.section;
@@ -429,10 +434,6 @@ export function useCardTransition({
             if (newProgress >= 0.5 && !hasPassedGreeting) {
                 setHasPassedGreeting(true);
             }
-
-            // Update scroll delta for orb reaction
-            const touchDelta = (currentX - touchStartRef.current.lastX) / viewportWidth;
-            scrollDeltaRef.current = Math.max(-1, Math.min(1, -touchDelta * 2));
 
             setScrollProgress(newProgress);
 

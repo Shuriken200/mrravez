@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { SpatialGrid } from '../../grid/core/SpatialGrid';
-import { CELL_FILLED, CELL_EMPTY, CELL_PROXIMITY } from '../../shared/types';
+import { CELL_FILLED, CELL_PROXIMITY } from '../../shared/types';
 import { type Orb } from '../types';
 
 /**
@@ -23,6 +23,63 @@ export class OrbPhysics {
 	static updatePosition(orb: Orb, deltaTime: number): void {
 		orb.pxX += orb.vx * deltaTime;
 		orb.pxY += orb.vy * deltaTime;
+	}
+
+	/**
+	 * Calculates the maximum speed for an orb based on its size.
+	 * Larger orbs have lower max speeds (inverse square root).
+	 *
+	 * @param size - The orb's size.
+	 * @param baseMaxSpeed - Max speed for size 1 orbs.
+	 * @param minMaxSpeed - Minimum max speed for largest orbs.
+	 * @returns The maximum speed in pixels/second.
+	 */
+	static getMaxSpeed(size: number, baseMaxSpeed: number, minMaxSpeed: number): number {
+		// Inverse square root: larger orbs are slower
+		const maxSpeed = baseMaxSpeed / Math.sqrt(size);
+		return Math.max(minMaxSpeed, maxSpeed);
+	}
+
+	/**
+	 * Applies smooth speed limiting to an orb.
+	 * If the orb exceeds its max speed, gradually decelerates with a smooth curve.
+	 * Uses exponential interpolation for natural-feeling deceleration.
+	 *
+	 * @param orb - The orb to limit.
+	 * @param baseMaxSpeed - Max speed for size 1 orbs.
+	 * @param minMaxSpeed - Minimum max speed for largest orbs.
+	 * @param decelerationRate - How quickly to approach max speed (0-1).
+	 * @param deltaTime - Time elapsed since last frame in seconds.
+	 */
+	static applySpeedLimit(
+		orb: Orb,
+		baseMaxSpeed: number,
+		minMaxSpeed: number,
+		decelerationRate: number,
+		deltaTime: number
+	): void {
+		const currentSpeed = Math.sqrt(orb.vx * orb.vx + orb.vy * orb.vy);
+		if (currentSpeed < 0.001) return; // Avoid division by zero
+
+		const maxSpeed = this.getMaxSpeed(orb.size, baseMaxSpeed, minMaxSpeed);
+
+		if (currentSpeed > maxSpeed) {
+			// Calculate smooth deceleration factor
+			// Use exponential decay for smooth curve: factor = 1 - (1 - rate)^(dt * 60)
+			// The 60 normalizes for 60fps, so rate works consistently across frame rates
+			const smoothFactor = 1 - Math.pow(1 - decelerationRate, deltaTime * 60);
+
+			// Lerp current speed toward max speed
+			const newSpeed = currentSpeed + (maxSpeed - currentSpeed) * smoothFactor;
+
+			// Apply the new speed while preserving direction
+			const scale = newSpeed / currentSpeed;
+			orb.vx *= scale;
+			orb.vy *= scale;
+
+			// Update the orb's stored speed value
+			orb.speed = newSpeed;
+		}
 	}
 
 	/**
@@ -121,6 +178,7 @@ export class OrbPhysics {
 
 	/**
 	 * Clears an orb's footprint from the spatial grid.
+	 * Uses removeCellFlag to preserve other flags.
 	 *
 	 * @param grid - The spatial grid instance.
 	 * @param orb - The orb to clear.
@@ -140,13 +198,15 @@ export class OrbPhysics {
 		const cellX = ((orb.pxX * invCellSizeX) | 0) + startCellX;
 		const cellY = ((orb.pxY * invCellSizeY) | 0) + startCellY;
 
-		grid.setCell(cellX, cellY, orb.layer, CELL_EMPTY);
+		grid.removeCellFlag(cellX, cellY, orb.layer, CELL_FILLED);
+		grid.removeCellFlag(cellX, cellY, orb.layer, CELL_PROXIMITY);
 	}
 
 	/**
 	 * Clears an orb's circular footprint from the spatial grid.
 	 * 
-	 * Mirrors the marking pattern of markOrbCircular().
+	 * Uses removeCellFlag to only remove this orb's flags without
+	 * affecting other orbs or border flags.
 	 * 
 	 * @param grid - The spatial grid instance.
 	 * @param orb - The orb to clear.
@@ -166,11 +226,23 @@ export class OrbPhysics {
 		const centerCellX = ((orb.pxX * invCellSizeX) | 0) + startCellX;
 		const centerCellY = ((orb.pxY * invCellSizeY) | 0) + startCellY;
 		const radius = orb.size - 1;
+		const avoidanceRadius = Math.floor(Math.sqrt(orb.size) + radius + 1);
 
+		// Clear avoidance zone flags
+		for (let dy = -avoidanceRadius; dy <= avoidanceRadius; dy++) {
+			for (let dx = -avoidanceRadius; dx <= avoidanceRadius; dx++) {
+				const distSq = dx * dx + dy * dy;
+				if (distSq > radius * radius && distSq <= avoidanceRadius * avoidanceRadius) {
+					grid.removeCellFlag(centerCellX + dx, centerCellY + dy, orb.layer, CELL_PROXIMITY);
+				}
+			}
+		}
+
+		// Clear body flags
 		for (let dy = -radius; dy <= radius; dy++) {
 			for (let dx = -radius; dx <= radius; dx++) {
 				if (dx * dx + dy * dy <= radius * radius) {
-					grid.setCell(centerCellX + dx, centerCellY + dy, orb.layer, CELL_EMPTY);
+					grid.removeCellFlag(centerCellX + dx, centerCellY + dy, orb.layer, CELL_FILLED);
 				}
 			}
 		}

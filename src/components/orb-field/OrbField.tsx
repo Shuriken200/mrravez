@@ -19,6 +19,7 @@ import {
 	type GridRevealConfig,
 	type GridStyleConfig,
 } from './shared/config';
+import { DEFAULT_SPEED_LIMIT_CONFIG } from './orb/config';
 import { GridRenderer } from './grid/visuals/GridRenderer';
 import { GridAnimator } from './grid/visuals/GridAnimator';
 import { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
@@ -233,7 +234,13 @@ export function OrbField({
 				OrbPhysics.updatePosition(orb, deltaTime);
 			}
 
-			// Phase 6: Re-mark at new positions for rendering
+			// Phase 6: Apply speed limits (larger orbs are slower)
+			const { baseMaxSpeed, minMaxSpeed, decelerationRate } = DEFAULT_SPEED_LIMIT_CONFIG;
+			for (const orb of currentOrbs) {
+				OrbPhysics.applySpeedLimit(orb, baseMaxSpeed, minMaxSpeed, decelerationRate, deltaTime);
+			}
+
+			// Phase 7: Re-mark at new positions for rendering
 			grid.clearDynamic();
 			for (const orb of currentOrbs) {
 				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);

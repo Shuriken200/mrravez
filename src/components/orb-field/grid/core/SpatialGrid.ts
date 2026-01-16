@@ -160,11 +160,15 @@ export class SpatialGrid {
 
 	/**
 	 * Clears only dynamic cells (CELL_FILLED, CELL_PROXIMITY).
-	 * Preserves CELL_BORDER cells to maintain permanent walls.
+	 * Preserves CELL_BORDER flag on cells to maintain permanent walls.
 	 */
 	clearDynamic(): void {
 		for (let i = 0; i < this.cells.length; i++) {
-			if (this.cells[i] !== CELL_BORDER) {
+			// Check if cell has BORDER flag using bit mask
+			if ((this.cells[i] & CELL_BORDER) !== 0) {
+				// Keep only the BORDER flag, clear everything else
+				this.cells[i] = CELL_BORDER;
+			} else {
 				this.cells[i] = CELL_EMPTY;
 			}
 		}

@@ -9,7 +9,7 @@ import { type Orb } from '../types';
 import { OrbPhysics } from '../core/OrbPhysics';
 import { SpatialGrid } from '../../grid/core/SpatialGrid';
 import { type ViewportCells } from '../../grid/types';
-import { DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_ORB_BURST_CONFIG, type OrbSpawnConfig, type OrbBurstConfig } from '../config';
+import { DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_ORB_BURST_CONFIG, DEFAULT_CONTINUOUS_SPAWN_CONFIG, type OrbSpawnConfig, type OrbBurstConfig, type ContinuousSpawnConfig } from '../config';
 import { CollisionSystem } from '../../collision/CollisionSystem';
 
 interface UseOrbManagerOptions {
@@ -17,6 +17,8 @@ interface UseOrbManagerOptions {
 	spawnConfig?: Partial<OrbSpawnConfig>;
 	/** Configuration for burst spawning. */
 	burstConfig?: Partial<OrbBurstConfig>;
+	/** Configuration for continuous spawning. */
+	continuousConfig?: Partial<ContinuousSpawnConfig>;
 }
 
 interface UseOrbManagerReturn {
@@ -42,6 +44,8 @@ interface UseOrbManagerReturn {
 	updateSelectedOrbData: () => void;
 	/** Syncs React state with orbsRef (for UI updates after direct ref modifications). */
 	syncOrbsState: () => void;
+	/** Spawns random orbs at random positions across the viewport. */
+	spawnRandomOrbs: (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells) => number;
 }
 
 /**
@@ -56,6 +60,10 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 	const burstConfig = useMemo(
 		() => ({ ...DEFAULT_ORB_BURST_CONFIG, ...options.burstConfig }),
 		[options.burstConfig]
+	);
+	const continuousConfig = useMemo(
+		() => ({ ...DEFAULT_CONTINUOUS_SPAWN_CONFIG, ...options.continuousConfig }),
+		[options.continuousConfig]
 	);
 
 	const orbsRef = useRef<Orb[]>([]);
@@ -265,6 +273,106 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 		setOrbs([...orbsRef.current]);
 	}, []);
 
+	/**
+	 * Spawns random orbs at random positions across the viewport.
+	 * Uses the same size distribution and lifetime as burst spawning.
+	 * Returns the number of orbs actually spawned.
+	 */
+	const spawnRandomOrbs = useCallback((
+		count: number,
+		screenWidth: number,
+		screenHeight: number,
+		grid: SpatialGrid,
+		vpc: ViewportCells
+	): number => {
+		const { maxSize, maxRetries, minSpeed, maxSpeed, minLifetimeMs, maxLifetimeMs } = burstConfig;
+		const { edgeMarginPx } = continuousConfig;
+		const totalLayers = grid.config.layers;
+		const newOrbs: Orb[] = [];
+
+		// Helper: Weighted random size selection (inverse square law)
+		const getRandomSize = (): number => {
+			const weights: number[] = [];
+			let sum = 0;
+			for (let size = 1; size <= maxSize; size++) {
+				const weight = 1 / (size * size);
+				sum += weight;
+				weights.push(sum);
+			}
+			const rand = Math.random() * sum;
+			for (let i = 0; i < weights.length; i++) {
+				if (rand <= weights[i]) {
+					return i + 1;
+				}
+			}
+			return 1;
+		};
+
+		// Helper: Get random position within viewport (with margin from edges)
+		const getRandomPosition = (): { x: number; y: number } => {
+			return {
+				x: edgeMarginPx + Math.random() * (screenWidth - 2 * edgeMarginPx),
+				y: edgeMarginPx + Math.random() * (screenHeight - 2 * edgeMarginPx),
+			};
+		};
+
+		for (let i = 0; i < count; i++) {
+			const size = getRandomSize();
+			const layer = OrbPhysics.getPreferredLayer(size, maxSize, totalLayers);
+
+			let spawnPos: { x: number; y: number } | null = null;
+			let attempts = 0;
+
+			while (attempts < maxRetries) {
+				const pos = getRandomPosition();
+				if (CollisionSystem.canSpawn(pos.x, pos.y, layer, size, grid, vpc)) {
+					spawnPos = pos;
+					break;
+				}
+				attempts++;
+			}
+
+			if (!spawnPos) continue;
+
+			// Random direction for velocity
+			const angle = Math.random() * Math.PI * 2;
+
+			// Size-based speed scaling
+			const sizeSpeedFactor = 1 / Math.sqrt(size);
+			const scaledMinSpeed = minSpeed * sizeSpeedFactor;
+			const scaledMaxSpeed = maxSpeed * sizeSpeedFactor;
+			const speed = scaledMinSpeed + Math.random() * (scaledMaxSpeed - scaledMinSpeed);
+
+			// Random lifetime
+			const lifetimeMs = minLifetimeMs + Math.random() * (maxLifetimeMs - minLifetimeMs);
+
+			const newOrb: Orb = {
+				id: crypto.randomUUID(),
+				pxX: spawnPos.x,
+				pxY: spawnPos.y,
+				z: layer,
+				vx: Math.cos(angle) * speed,
+				vy: Math.sin(angle) * speed,
+				vz: 0,
+				speed,
+				angle,
+				size,
+				createdAt: performance.now(),
+				lifetimeMs,
+			};
+
+			OrbPhysics.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
+			newOrbs.push(newOrb);
+		}
+
+		if (newOrbs.length > 0) {
+			orbsRef.current.push(...newOrbs);
+			setOrbs([...orbsRef.current]); // Sync React state for UI
+		}
+
+		return newOrbs.length;
+	}, [burstConfig, continuousConfig]);
+
 	return {
 		orbsRef,
 		orbs,
@@ -273,6 +381,7 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 		selectedOrbIdRef,
 		createOrb,
 		spawnOrbBurst,
+		spawnRandomOrbs,
 		deleteOrb,
 		selectOrb,
 		updateSelectedOrbData,

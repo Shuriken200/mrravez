@@ -19,7 +19,7 @@ import {
 	type GridRevealConfig,
 	type GridStyleConfig,
 } from './shared/config';
-import { DEFAULT_SPEED_LIMIT_CONFIG, DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_LAYER_ATTRACTION_CONFIG } from './orb/config';
+import { DEFAULT_SPEED_LIMIT_CONFIG, DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_LAYER_ATTRACTION_CONFIG, DEFAULT_CONTINUOUS_SPAWN_CONFIG } from './orb/config';
 import { GridRenderer } from './grid/visuals/GridRenderer';
 import { GridAnimator } from './grid/visuals/GridAnimator';
 import { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
@@ -79,6 +79,7 @@ export function OrbField({
 	const currentLayerRef = useRef(initialLayer);
 	const hoveredCellRef = useRef<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
 	const isPausedRef = useRef(false);
+	const burstTimeRef = useRef<number | null>(null); // Track when burst happened for delayed continuous spawning
 
 	// =========================================================================
 	// React State for UI
@@ -103,6 +104,7 @@ export function OrbField({
 		selectedOrbIdRef,
 		createOrb,
 		spawnOrbBurst,
+		spawnRandomOrbs,
 		deleteOrb,
 		selectOrb,
 		updateSelectedOrbData,
@@ -120,6 +122,14 @@ export function OrbField({
 		() => ({ ...DEFAULT_STYLE_CONFIG, ...styleOverrides }),
 		[styleOverrides]
 	);
+
+	// Calculate target orb count based on screen size
+	const targetOrbCount = useMemo(() => {
+		const { targetOrbCountAt4K, referenceScreenArea } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
+		const screenArea = windowSize.width * windowSize.height;
+		const areaScale = screenArea / referenceScreenArea;
+		return Math.round(targetOrbCountAt4K * areaScale);
+	}, [windowSize]);
 
 	// Config refs for stable loop access
 	const revealConfigRef = useRef(revealConfig);
@@ -270,6 +280,39 @@ export function OrbField({
 				orbsRef.current = currentOrbs.filter(orb => (now - orb.createdAt) <= orb.lifetimeMs);
 				syncOrbsState(); // Update React state for UI
 			}
+
+			// Phase 10: Continuous spawning to maintain target orb count
+			const burstTime = burstTimeRef.current;
+			const { targetOrbCountAt4K, referenceScreenArea, delayAfterBurstMs, baseSpawnRateAt4K, maxSpawnsPerFrame } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
+			if (burstTime && (now - burstTime) > delayAfterBurstMs) {
+				// Scale target and spawn rate linearly with screen area
+				// At 4K (3840x2160): 1000 orbs, at 1080p (1920x1080): ~250 orbs
+				const screenArea = ws.width * ws.height;
+				const areaScale = screenArea / referenceScreenArea;
+				const targetOrbCount = Math.round(targetOrbCountAt4K * areaScale);
+				const baseSpawnRate = baseSpawnRateAt4K * areaScale;
+
+				const currentCount = orbsRef.current.length;
+				const deficit = targetOrbCount - currentCount;
+
+				if (deficit > 0) {
+					// Calculate spawn rate based on deficit (more deficit = faster spawning)
+					// Use a smooth curve: spawn rate scales with how far below target we are
+					const deficitRatio = Math.min(1, deficit / targetOrbCount); // 0 to 1
+					const spawnRate = baseSpawnRate * deficitRatio; // orbs per second
+
+					// Calculate how many to spawn this frame (probabilistic for smooth spawning)
+					const expectedSpawns = spawnRate * deltaTime;
+					const guaranteedSpawns = Math.floor(expectedSpawns);
+					const fractionalChance = expectedSpawns - guaranteedSpawns;
+					const extraSpawn = Math.random() < fractionalChance ? 1 : 0;
+					const spawnsThisFrame = Math.min(guaranteedSpawns + extraSpawn, maxSpawnsPerFrame);
+
+					if (spawnsThisFrame > 0) {
+						spawnRandomOrbs(spawnsThisFrame, ws.width, ws.height, grid, vpc);
+					}
+				}
+			}
 		} else if (easedProgress >= 1 && isPausedRef.current) {
 			// When paused, still mark orbs for rendering but don't update physics
 			const currentOrbs = orbsRef.current;
@@ -314,7 +357,7 @@ export function OrbField({
 		if (IS_DEBUG_MODE && selectedOrbIdRef.current) {
 			updateSelectedOrbData();
 		}
-	}, [orbsRef, selectedOrbIdRef, updateSelectedOrbData, syncOrbsState]);
+	}, [orbsRef, selectedOrbIdRef, updateSelectedOrbData, syncOrbsState, spawnRandomOrbs]);
 
 	// =========================================================================
 	// 4. Animation Loop Controller
@@ -343,6 +386,7 @@ export function OrbField({
 					const centerX = ws.width / 2;
 					const centerY = ws.height / 2;
 					spawnOrbBurst(centerX, centerY, grid, vpc);
+					burstTimeRef.current = performance.now(); // Record burst time for delayed continuous spawning
 				}
 
 				// Continue with physics loop after reveal
@@ -454,6 +498,7 @@ export function OrbField({
 				>
 					<OrbDebugPanel
 						orbs={orbs}
+						targetOrbCount={targetOrbCount}
 						selectedOrbId={selectedOrbId}
 						selectedOrb={selectedOrbData}
 						orbSize={orbSize}

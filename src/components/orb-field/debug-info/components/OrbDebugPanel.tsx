@@ -13,6 +13,8 @@ import { DEFAULT_ORB_SPAWN_CONFIG } from '../../orb/config';
 interface OrbDebugPanelProps {
 	/** Current list of orbs in the system. */
 	orbs?: Orb[];
+	/** Target orb count (scales with screen size). */
+	targetOrbCount?: number;
 	/** Currently selected orb ID. */
 	selectedOrbId?: string | null;
 	/** Real-time data for the selected orb. */
@@ -45,6 +47,7 @@ interface OrbDebugPanelProps {
  */
 export function OrbDebugPanel({
 	orbs = [],
+	targetOrbCount,
 	selectedOrbId,
 	selectedOrb: selectedOrbProp,
 	orbSize = DEFAULT_ORB_SPAWN_CONFIG.defaultSize,
@@ -89,7 +92,7 @@ export function OrbDebugPanel({
 					marginBottom: 4,
 				}}
 			>
-				Orb Debug ({orbs.length})
+				Orb Debug ({orbs.length}{targetOrbCount ? ` / ${targetOrbCount}` : ''})
 			</div>
 
 			{/* Orb Selector */}

@@ -278,6 +278,8 @@ export class CollisionSystem {
 	 * v1' = v1 - (2*m2/(m1+m2)) * dot(v1-v2, n) * n
 	 * v2' = v2 + (2*m1/(m1+m2)) * dot(v1-v2, n) * n
 	 * 
+	 * Also includes position correction to prevent orbs from getting stuck.
+	 * 
 	 * @param orbs - Array of all orbs to check.
 	 * @param vpc - Viewport cell metrics for coordinate conversion.
 	 */
@@ -309,7 +311,7 @@ export class CollisionSystem {
 				const minDist = radiusA + radiusB + 1;
 
 				if (distSq < minDist * minDist && distSq > 0.001) {
-					// Collision detected - apply mass-weighted elastic collision
+					// Collision detected
 					const dist = Math.sqrt(distSq);
 					const nx = dx / dist;
 					const ny = dy / dist;
@@ -320,6 +322,25 @@ export class CollisionSystem {
 					const massB = orbB.size;
 					const totalMass = massA + massB;
 
+					// Position correction: push orbs apart if overlapping
+					const overlap = minDist - dist;
+					if (overlap > 0) {
+						// Distribute separation based on mass (smaller orbs move more)
+						const separationA = (overlap * massB / totalMass) * 0.5;
+						const separationB = (overlap * massA / totalMass) * 0.5;
+
+						// Convert back to pixel space for XY, keep Z in layers
+						const cellSizeXPx = 1 / vpc.invCellSizeXPx;
+						const cellSizeYPx = 1 / vpc.invCellSizeYPx;
+
+						orbA.pxX -= nx * separationA * cellSizeXPx;
+						orbA.pxY -= ny * separationA * cellSizeYPx;
+						orbA.z -= nz * separationA;
+						orbB.pxX += nx * separationB * cellSizeXPx;
+						orbB.pxY += ny * separationB * cellSizeYPx;
+						orbB.z += nz * separationB;
+					}
+
 					// Relative velocity of A with respect to B in 3D
 					const dvx = orbA.vx - orbB.vx;
 					const dvy = orbA.vy - orbB.vy;
@@ -328,7 +349,7 @@ export class CollisionSystem {
 					// Relative velocity in collision normal direction
 					const dvn = dvx * nx + dvy * ny + dvz * nz;
 
-					// Only resolve if objects are approaching each other
+					// Only resolve velocity if objects are approaching each other
 					if (dvn > 0) {
 						// Mass-weighted impulse factors
 						// Smaller orbs get pushed more, larger orbs get pushed less

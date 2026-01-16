@@ -210,7 +210,32 @@ export function OrbField({
 				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
 			}
 
-			// Phase 2: Check border/wall collisions for each orb (3D)
+			// Phase 2: Apply soft avoidance repulsion (when avoidance zones overlap)
+			CollisionSystem.applyAvoidanceRepulsion(currentOrbs, vpc);
+
+			// Phase 3: Resolve orb-orb hard collisions (mutual elastic bounce)
+			CollisionSystem.resolveOrbOrbCollisions(currentOrbs, vpc);
+
+			// Phase 4: Apply speed limits (larger orbs are slower)
+			const { baseMaxSpeed, minMaxSpeed, decelerationRate } = DEFAULT_SPEED_LIMIT_CONFIG;
+			for (const orb of currentOrbs) {
+				OrbPhysics.applySpeedLimit(orb, baseMaxSpeed, minMaxSpeed, decelerationRate, deltaTime);
+			}
+
+			// Phase 5: Apply layer attraction (orbs drift toward preferred depth)
+			const { maxSize } = DEFAULT_ORB_SPAWN_CONFIG;
+			const { attractionStrength } = DEFAULT_LAYER_ATTRACTION_CONFIG;
+			const totalLayers = grid.config.layers;
+			for (const orb of currentOrbs) {
+				OrbPhysics.applyLayerAttraction(orb, maxSize, totalLayers, attractionStrength, deltaTime);
+			}
+
+			// Phase 6: Move all orbs
+			for (const orb of currentOrbs) {
+				OrbPhysics.updatePosition(orb, deltaTime);
+			}
+
+			// Phase 7: Check border/wall collisions for each orb (3D) AFTER movement
 			for (const orb of currentOrbs) {
 				// Temporarily clear this orb's cells to check collision with walls and other orbs
 				OrbPhysics.clearOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
@@ -221,34 +246,10 @@ export function OrbField({
 				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
 
 				if (collision.blocked) {
-					// Apply reflection on all 3 colliding axes (walls/borders)
+					// Revert the movement and reflect velocity
+					OrbPhysics.updatePosition(orb, -deltaTime); // Undo movement
 					CollisionSystem.applyReflection(orb, collision.reflectX, collision.reflectY, collision.reflectZ);
 				}
-			}
-
-			// Phase 3: Apply soft avoidance repulsion (when avoidance zones overlap)
-			CollisionSystem.applyAvoidanceRepulsion(currentOrbs, vpc);
-
-			// Phase 4: Resolve orb-orb hard collisions (mutual elastic bounce)
-			CollisionSystem.resolveOrbOrbCollisions(currentOrbs, vpc);
-
-			// Phase 5: Move all orbs
-			for (const orb of currentOrbs) {
-				OrbPhysics.updatePosition(orb, deltaTime);
-			}
-
-			// Phase 6: Apply speed limits (larger orbs are slower)
-			const { baseMaxSpeed, minMaxSpeed, decelerationRate } = DEFAULT_SPEED_LIMIT_CONFIG;
-			for (const orb of currentOrbs) {
-				OrbPhysics.applySpeedLimit(orb, baseMaxSpeed, minMaxSpeed, decelerationRate, deltaTime);
-			}
-
-			// Phase 7: Apply layer attraction (orbs drift toward preferred depth)
-			const { maxSize } = DEFAULT_ORB_SPAWN_CONFIG;
-			const { attractionStrength } = DEFAULT_LAYER_ATTRACTION_CONFIG;
-			const totalLayers = grid.config.layers;
-			for (const orb of currentOrbs) {
-				OrbPhysics.applyLayerAttraction(orb, maxSize, totalLayers, attractionStrength, deltaTime);
 			}
 
 			// Phase 8: Re-mark at new positions for rendering

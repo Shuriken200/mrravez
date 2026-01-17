@@ -26,8 +26,19 @@ import { GridAnimator } from './grid/visuals/GridAnimator';
 import { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
 import { GridDebugPanel } from './debug-info/components/GridDebugPanel';
 
-/** Debug mode flag from environment variable. */
-const IS_DEBUG_MODE = process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+/** Debug mode flag - checks both environment variable and localStorage. */
+const getDebugMode = (): boolean => {
+	// Server-side or initial load: use environment variable
+	if (typeof window === 'undefined') {
+		return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+	}
+	// Client-side: check localStorage first, fall back to environment variable
+	const stored = localStorage.getItem('debug-mode-enabled');
+	if (stored !== null) {
+		return stored === 'true';
+	}
+	return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+};
 
 /** Pixels of grid/orb movement per viewport unit of scroll progress. */
 const SCROLL_OFFSET_PX_PER_UNIT = 100;
@@ -121,6 +132,23 @@ export function OrbField({
 	const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 	const [isMounted, setIsMounted] = useState(false);
 	const [isPaused, setIsPaused] = useState(false);
+	const [isDebugMode, setIsDebugMode] = useState(false);
+
+	// Initialize debug mode on mount
+	useEffect(() => {
+		setIsDebugMode(getDebugMode());
+		
+		// Listen for debug mode changes from slider
+		const handleDebugModeChange = (e: CustomEvent) => {
+			setIsDebugMode(e.detail.enabled);
+		};
+		
+		window.addEventListener('debugModeChanged', handleDebugModeChange as EventListener);
+		
+		return () => {
+			window.removeEventListener('debugModeChanged', handleDebugModeChange as EventListener);
+		};
+	}, []);
 
 	// =========================================================================
 	// Orb Management (Delegated to Custom Hook)
@@ -415,12 +443,15 @@ export function OrbField({
 
 		// C. Opacity Fade Logic (non-debug mode)
 		let finalOpacity = opacityRef.current;
-		if (!IS_DEBUG_MODE) {
+		if (!isDebugMode) {
 			const fadeStart = DEFAULT_ORBFIELD_CONFIG.fadeOutStart;
 			if (easedProgress > fadeStart) {
 				const fadeFactor = (easedProgress - fadeStart) / (1 - fadeStart);
 				finalOpacity *= (1 - fadeFactor);
 			}
+		} else {
+			// In debug mode, always use full opacity
+			finalOpacity = 1;
 		}
 		canvas.style.opacity = finalOpacity.toString();
 
@@ -444,10 +475,10 @@ export function OrbField({
 			easedProgress,
 			revealConfigRef.current,
 			styleConfigRef.current,
-			IS_DEBUG_MODE ? hoveredCellRef.current : null,
+			isDebugMode ? hoveredCellRef.current : null,
 			grid,
 			currentLayerRef.current,
-			IS_DEBUG_MODE ? orbsRef.current : [],
+			isDebugMode ? orbsRef.current : [],
 			undefined, // use default orbDebugConfig
 			current.x,
 			current.y
@@ -473,7 +504,7 @@ export function OrbField({
 		}
 
 		// F. Debug Panel Sync
-		if (IS_DEBUG_MODE && selectedOrbIdRef.current) {
+		if (isDebugMode && selectedOrbIdRef.current) {
 			updateSelectedOrbData();
 		}
 	}, [orbsRef, selectedOrbIdRef, updateSelectedOrbData, syncOrbsState, spawnRandomOrbs]);
@@ -570,7 +601,7 @@ export function OrbField({
 		// Debug mode cell tracking only (mouse repulsion handled by global listener)
 		const vpc = viewportCellsRef.current;
 		const gc = gridConfig;
-		if (!vpc || !gc || rollProgressRef.current < 1 || !IS_DEBUG_MODE) return;
+		if (!vpc || !gc || rollProgressRef.current < 1 || !isDebugMode) return;
 
 		const cellX = vpc.startCellX + Math.floor(e.clientX / vpc.cellSizeXPx);
 		const cellY = vpc.startCellY + Math.floor(e.clientY / vpc.cellSizeYPx);
@@ -589,7 +620,7 @@ export function OrbField({
 	const handleClick = useCallback((e: React.MouseEvent) => {
 		const vpc = viewportCellsRef.current;
 		const grid = gridRef.current;
-		if (!grid || !vpc || !IS_DEBUG_MODE) return;
+		if (!grid || !vpc || !isDebugMode) return;
 
 		createOrb(e.clientX, e.clientY, currentLayerRef.current, orbSize, grid, vpc);
 	}, [orbSize, createOrb]);
@@ -644,13 +675,13 @@ export function OrbField({
 				style={{
 					position: 'fixed',
 					inset: 0,
-					pointerEvents: IS_DEBUG_MODE ? 'auto' : 'none',
+					pointerEvents: isDebugMode ? 'auto' : 'none',
 					opacity,
 					zIndex: canvasZIndex,
 				}}
 			/>
 
-			{IS_DEBUG_MODE && gridConfig && viewportCells && (
+			{isDebugMode && gridConfig && viewportCells && (
 				<div
 					style={{
 						position: 'fixed',

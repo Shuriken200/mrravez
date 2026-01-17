@@ -8,6 +8,9 @@ interface GlassSliderProps {
     onSlideComplete?: (side: 'left' | 'right') => void;
 }
 
+// Debug mode storage key
+const DEBUG_MODE_KEY = 'debug-mode-enabled';
+
 // Spring physics configuration for smooth snap animation
 const SPRING_CONFIG = {
     stiffness: 300,
@@ -23,11 +26,21 @@ export function GlassSlider({ visible, opacity = 1, onSlideComplete }: GlassSlid
     const [hasAppeared, setHasAppeared] = useState(false);
     const [hasEverShown, setHasEverShown] = useState(false);
     const [canShowFirstTime, setCanShowFirstTime] = useState(false);
+    const [isDebugMode, setIsDebugMode] = useState(false);
     
     // Refs for animation
     const animationRef = useRef<number | null>(null);
     const velocityRef = useRef(0);
     const dragStartRef = useRef<{ x: number; startPosition: number } | null>(null);
+
+    // Initialize debug mode from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem(DEBUG_MODE_KEY);
+        const debugEnabled = stored === 'true';
+        setIsDebugMode(debugEnabled);
+        // Set initial position based on debug mode
+        setPosition(debugEnabled ? 1 : 0);
+    }, []);
 
     // Handle first-time delay (10 seconds)
     useEffect(() => {
@@ -98,6 +111,18 @@ export function GlassSlider({ visible, opacity = 1, onSlideComplete }: GlassSlid
                 velocityRef.current = 0;
                 animationRef.current = null;
                 
+                // Toggle debug mode when snapped
+                const newDebugMode = target > 0.5;
+                if (newDebugMode !== isDebugMode) {
+                    setIsDebugMode(newDebugMode);
+                    localStorage.setItem(DEBUG_MODE_KEY, String(newDebugMode));
+                    
+                    // Dispatch custom event to notify OrbField
+                    window.dispatchEvent(new CustomEvent('debugModeChanged', { 
+                        detail: { enabled: newDebugMode } 
+                    }));
+                }
+                
                 // Notify completion
                 if (onSlideComplete) {
                     onSlideComplete(target < 0.5 ? 'left' : 'right');
@@ -109,7 +134,7 @@ export function GlassSlider({ visible, opacity = 1, onSlideComplete }: GlassSlid
         };
         
         animationRef.current = requestAnimationFrame(animate);
-    }, [position, cancelAnimation, onSlideComplete]);
+    }, [position, cancelAnimation, onSlideComplete, isDebugMode]);
 
     // Calculate position from pointer X coordinate
     const calculatePosition = useCallback((clientX: number, isDragStart: boolean = false): number => {

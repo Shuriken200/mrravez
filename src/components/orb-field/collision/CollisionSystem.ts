@@ -261,12 +261,15 @@ export class CollisionSystem {
 					const accelB = acceleration * (massA / totalMass);
 
 					// Apply 3D repulsion as gradual acceleration (push orbs apart)
-					orbA.vx -= accelA * nx * deltaTime;
-					orbA.vy -= accelA * ny * deltaTime;
-					orbA.vz -= accelA * nz * deltaTime;
-					orbB.vx += accelB * nx * deltaTime;
-					orbB.vy += accelB * ny * deltaTime;
-					orbB.vz += accelB * nz * deltaTime;
+					// Guard against NaN propagation
+					if (isFinite(accelA) && isFinite(accelB)) {
+						orbA.vx -= accelA * nx * deltaTime;
+						orbA.vy -= accelA * ny * deltaTime;
+						orbA.vz -= accelA * nz * deltaTime;
+						orbB.vx += accelB * nx * deltaTime;
+						orbB.vy += accelB * ny * deltaTime;
+						orbB.vz += accelB * nz * deltaTime;
+					}
 				}
 			}
 		}
@@ -321,8 +324,11 @@ export class CollisionSystem {
 			const ny = dy / dist;
 
 			// Apply repulsion as acceleration (XY only, no Z)
-			orb.vx += acceleration * nx * deltaTime;
-			orb.vy += acceleration * ny * deltaTime;
+			// Guard against NaN propagation
+			if (isFinite(acceleration) && isFinite(nx) && isFinite(ny)) {
+				orb.vx += acceleration * nx * deltaTime;
+				orb.vy += acceleration * ny * deltaTime;
+			}
 		}
 	}
 
@@ -391,12 +397,15 @@ export class CollisionSystem {
 						const cellSizeXPx = 1 / vpc.invCellSizeXPx;
 						const cellSizeYPx = 1 / vpc.invCellSizeYPx;
 
-						orbA.pxX -= nx * separationA * cellSizeXPx;
-						orbA.pxY -= ny * separationA * cellSizeYPx;
-						orbA.z -= nz * separationA;
-						orbB.pxX += nx * separationB * cellSizeXPx;
-						orbB.pxY += ny * separationB * cellSizeYPx;
-						orbB.z += nz * separationB;
+						// Guard against NaN propagation
+						if (isFinite(separationA) && isFinite(separationB) && isFinite(nx) && isFinite(ny) && isFinite(nz)) {
+							orbA.pxX -= nx * separationA * cellSizeXPx;
+							orbA.pxY -= ny * separationA * cellSizeYPx;
+							orbA.z -= nz * separationA;
+							orbB.pxX += nx * separationB * cellSizeXPx;
+							orbB.pxY += ny * separationB * cellSizeYPx;
+							orbB.z += nz * separationB;
+						}
 					}
 
 					// Relative velocity of A with respect to B in 3D
@@ -408,18 +417,21 @@ export class CollisionSystem {
 					const dvn = dvx * nx + dvy * ny + dvz * nz;
 
 					// Only resolve velocity if objects are approaching each other
-					if (dvn > 0) {
+					if (dvn > 0 && isFinite(dvn)) {
 						// Mass-weighted impulse factors
 						// Smaller orbs get pushed more, larger orbs get pushed less
 						const impulseA = (2 * massB / totalMass) * dvn;
 						const impulseB = (2 * massA / totalMass) * dvn;
 
-						orbA.vx -= impulseA * nx;
-						orbA.vy -= impulseA * ny;
-						orbA.vz -= impulseA * nz;
-						orbB.vx += impulseB * nx;
-						orbB.vy += impulseB * ny;
-						orbB.vz += impulseB * nz;
+						// Guard against NaN propagation
+						if (isFinite(impulseA) && isFinite(impulseB)) {
+							orbA.vx -= impulseA * nx;
+							orbA.vy -= impulseA * ny;
+							orbA.vz -= impulseA * nz;
+							orbB.vx += impulseB * nx;
+							orbB.vy += impulseB * ny;
+							orbB.vz += impulseB * nz;
+						}
 					}
 				}
 			}

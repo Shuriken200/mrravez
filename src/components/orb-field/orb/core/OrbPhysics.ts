@@ -21,9 +21,17 @@ export class OrbPhysics {
 	 * @param deltaTime - Time elapsed since last frame in seconds.
 	 */
 	static updatePosition(orb: Orb, deltaTime: number): void {
-		orb.pxX += orb.vx * deltaTime;
-		orb.pxY += orb.vy * deltaTime;
-		orb.z += orb.vz * deltaTime;
+		// Skip update if deltaTime is invalid (prevents NaN propagation)
+		if (!isFinite(deltaTime) || deltaTime <= 0 || deltaTime > 1) return;
+
+		const newX = orb.pxX + orb.vx * deltaTime;
+		const newY = orb.pxY + orb.vy * deltaTime;
+		const newZ = orb.z + orb.vz * deltaTime;
+
+		// Only apply if results are finite (prevents NaN propagation)
+		if (isFinite(newX)) orb.pxX = newX;
+		if (isFinite(newY)) orb.pxY = newY;
+		if (isFinite(newZ)) orb.z = newZ;
 	}
 
 	/**

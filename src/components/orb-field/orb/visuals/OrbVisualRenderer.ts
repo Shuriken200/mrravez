@@ -94,11 +94,16 @@ export class OrbVisualRenderer {
 	): void {
 		const { pxX, pxY, z, size } = orb;
 
+		// Skip orbs with invalid positions (NaN or Infinity)
+		if (!isFinite(pxX) || !isFinite(pxY) || !isFinite(z) || !isFinite(size) || size <= 0) {
+			return;
+		}
+
 		// Calculate animation factor (0 = invisible/small, 1 = fully visible/full size)
 		const animationFactor = this.calculateAnimationFactor(orb, currentTime, config);
 
-		// Skip rendering if fully invisible
-		if (animationFactor <= 0) return;
+		// Skip rendering if fully invisible or invalid
+		if (animationFactor <= 0 || !isFinite(animationFactor)) return;
 
 		// Calculate depth factor (0 = closest, 1 = furthest)
 		const depthFactor = this.calculateDepthFactor(z, totalLayers);
@@ -117,8 +122,8 @@ export class OrbVisualRenderer {
 		const scaleFactor = this.lerp(config.animationMinScale, 1, animationFactor);
 		glowRadius *= scaleFactor;
 
-		// Skip if radius is too small to render
-		if (glowRadius < 0.5) return;
+		// Skip if radius is too small or invalid
+		if (glowRadius < 0.5 || !isFinite(glowRadius)) return;
 
 		// Calculate depth-based opacity, modulated by animation
 		const baseOpacity = this.lerp(config.maxOpacity, config.minOpacity, depthFactor);

@@ -607,8 +607,13 @@ export function OrbField({
 		const gc = gridConfig;
 		if (!vpc || !gc || rollProgressRef.current < 1 || !isDebugMode) return;
 
-		const cellX = vpc.startCellX + Math.floor(e.clientX / vpc.cellSizeXPx);
-		const cellY = vpc.startCellY + Math.floor(e.clientY / vpc.cellSizeYPx);
+		// Account for scroll offset when calculating cell position
+		const currentOffset = currentScrollOffsetRef.current;
+		const adjustedX = e.clientX - currentOffset.x;
+		const adjustedY = e.clientY - currentOffset.y;
+
+		const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
+		const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
 
 		const cellInfo = {
 			x: cellX,
@@ -626,8 +631,13 @@ export function OrbField({
 		const grid = gridRef.current;
 		if (!grid || !vpc || !isDebugMode) return;
 
-		createOrb(e.clientX, e.clientY, currentLayerRef.current, orbSize, grid, vpc);
-	}, [orbSize, createOrb]);
+		// Account for scroll offset when calculating click position
+		const currentOffset = currentScrollOffsetRef.current;
+		const adjustedX = e.clientX - currentOffset.x;
+		const adjustedY = e.clientY - currentOffset.y;
+
+		createOrb(adjustedX, adjustedY, currentLayerRef.current, orbSize, grid, vpc);
+	}, [orbSize, createOrb, isDebugMode]);
 
 	const handleDeleteOrb = useCallback((id: string) => {
 		const grid = gridRef.current;

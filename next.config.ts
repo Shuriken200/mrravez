@@ -53,7 +53,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Use standalone output for Docker builds, otherwise let OpenNext handle it
+  output: process.env.STANDALONE === "true" ? "standalone" : undefined,
 
   // Remove X-Powered-By header
   poweredByHeader: false,

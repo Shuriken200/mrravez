@@ -7,6 +7,13 @@ function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Linear interpolation between current and target
+ */
+function lerp(current: number, target: number, factor: number): number {
+	return current + (target - current) * factor;
+}
+
 interface DeviceOrientation {
 	tiltX: number;       // Calibrated: 0.5 = initial position
 	tiltY: number;       // Calibrated: 0.5 = initial position
@@ -15,66 +22,71 @@ interface DeviceOrientation {
 	hasPermission: boolean;
 }
 
-// Throttle interval in ms (20fps = 50ms between updates)
-const THROTTLE_INTERVAL_MS = 50;
+// Smoothing factor for interpolation (lower = smoother but laggier)
+const SMOOTHING_FACTOR = 0.12;
 
 export function useDeviceOrientation(): DeviceOrientation {
 	const [orientation, setOrientation] = useState({ beta: 0, gamma: 0 });
 	const [hasPermission, setHasPermission] = useState(false);
 
-	// Ref to track last update time for throttling
-	const lastUpdateRef = useRef<number>(0);
-	// Ref to store pending orientation data
-	const pendingOrientationRef = useRef<{ beta: number; gamma: number } | null>(null);
-	// Ref for throttle timeout
-	const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Target values from device orientation events (raw, unsmoothed)
+	const targetOrientationRef = useRef({ beta: 0, gamma: 0 });
+
+	// Smoothed values for rendering (interpolated via RAF)
+	const smoothedOrientationRef = useRef({ beta: 0, gamma: 0 });
+
 	// State to store initial orientation for calibration (null until first reading)
 	const [initialOrientation, setInitialOrientation] = useState<{ beta: number; gamma: number } | null>(null);
+
+	// RAF loop ID for cleanup
+	const rafIdRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		const handleOrientation = (e: DeviceOrientationEvent) => {
 			if (e.beta === null || e.gamma === null) return;
 
-			const now = Date.now();
-			const timeSinceLastUpdate = now - lastUpdateRef.current;
-
 			// Capture initial orientation on first valid reading
 			if (initialOrientation === null) {
+				const initialBeta = clamp(e.beta, -90, 90);
+				const initialGamma = clamp(e.gamma, -45, 45);
+
 				setInitialOrientation({
-					beta: clamp(e.beta, -90, 90),
-					gamma: clamp(e.gamma, -45, 45),
+					beta: initialBeta,
+					gamma: initialGamma,
 				});
+
+				// Initialize smoothed values to initial position
+				smoothedOrientationRef.current = {
+					beta: initialBeta,
+					gamma: initialGamma,
+				};
+				targetOrientationRef.current = {
+					beta: initialBeta,
+					gamma: initialGamma,
+				};
 			}
 
-			// Store the latest orientation data
-			pendingOrientationRef.current = {
+			// Update target values (these will be smoothly interpolated to)
+			targetOrientationRef.current = {
 				beta: clamp(e.beta, -90, 90),
 				gamma: clamp(e.gamma, -45, 45),
 			};
+		};
 
-			// If enough time has passed, update immediately
-			if (timeSinceLastUpdate >= THROTTLE_INTERVAL_MS) {
-				lastUpdateRef.current = now;
-				setOrientation(pendingOrientationRef.current);
-				pendingOrientationRef.current = null;
+		// Smoothing loop using requestAnimationFrame
+		const smoothingLoop = () => {
+			const target = targetOrientationRef.current;
+			const current = smoothedOrientationRef.current;
 
-				// Clear any pending timeout
-				if (throttleTimeoutRef.current) {
-					clearTimeout(throttleTimeoutRef.current);
-					throttleTimeoutRef.current = null;
-				}
-			} else if (!throttleTimeoutRef.current) {
-				// Schedule an update for when the throttle period ends
-				const delay = THROTTLE_INTERVAL_MS - timeSinceLastUpdate;
-				throttleTimeoutRef.current = setTimeout(() => {
-					if (pendingOrientationRef.current) {
-						lastUpdateRef.current = Date.now();
-						setOrientation(pendingOrientationRef.current);
-						pendingOrientationRef.current = null;
-					}
-					throttleTimeoutRef.current = null;
-				}, delay);
-			}
+			// Interpolate toward target values
+			current.beta = lerp(current.beta, target.beta, SMOOTHING_FACTOR);
+			current.gamma = lerp(current.gamma, target.gamma, SMOOTHING_FACTOR);
+
+			// Update state with smoothed values
+			setOrientation({ beta: current.beta, gamma: current.gamma });
+
+			// Continue loop
+			rafIdRef.current = requestAnimationFrame(smoothingLoop);
 		};
 
 		const requestPermission = async () => {
@@ -90,11 +102,15 @@ export function useDeviceOrientation(): DeviceOrientation {
 					if (permission === 'granted') {
 						setHasPermission(true);
 						window.addEventListener('deviceorientation', handleOrientation);
+						// Start smoothing loop
+						rafIdRef.current = requestAnimationFrame(smoothingLoop);
 					}
 				} catch { }
 			} else if (typeof DeviceOrientationEvent !== 'undefined') {
 				setHasPermission(true);
 				window.addEventListener('deviceorientation', handleOrientation);
+				// Start smoothing loop
+				rafIdRef.current = requestAnimationFrame(smoothingLoop);
 			}
 		};
 
@@ -109,8 +125,8 @@ export function useDeviceOrientation(): DeviceOrientation {
 		return () => {
 			window.removeEventListener('deviceorientation', handleOrientation);
 			window.removeEventListener('touchstart', handleFirstTouch);
-			if (throttleTimeoutRef.current) {
-				clearTimeout(throttleTimeoutRef.current);
+			if (rafIdRef.current) {
+				cancelAnimationFrame(rafIdRef.current);
 			}
 		};
 	}, [initialOrientation]);

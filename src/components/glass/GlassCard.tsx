@@ -89,8 +89,8 @@ export function GlassCard({
         const maxTilt = 18; // 3x more extreme than before (was 6)
         // Center the values: 0.5 becomes 0, range becomes -0.5 to 0.5
         // Then scale to max rotation (0.5 * 2 * maxTilt = maxTilt at full tilt)
-        const rotateY = (tiltX - 0.5) * 2 * maxTilt;  // left-right
-        const rotateX = (tiltY - 0.5) * 2 * maxTilt;  // front-back (positive so card faces user)
+        const rotateY = -(tiltX - 0.5) * 2 * maxTilt;  // left-right (inverted so card faces user)
+        const rotateX = (tiltY - 0.5) * 2 * maxTilt;   // front-back (positive so card faces user)
         
         mobileTiltTransform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1, 1, 1)`;
     }

@@ -5,7 +5,6 @@ import { useTheme } from "@/components/providers";
 import { ScrollDotIndicator } from "@/components/ui/ScrollDotIndicator";
 import { GridView } from "@/components/orb-field";
 import { GlassSlider } from "@/components/glass";
-import { GlassDebugMenu } from "@/components/debug";
 import {
     useAnimationStages,
     useCardTransition,
@@ -131,9 +130,6 @@ export function HomePage({ initialSection }: HomePageProps) {
                             : 0
                 }
             />
-
-            {/* Glass debug menu - top left corner, only shows in debug mode */}
-            <GlassDebugMenu />
         </>
     );
 }

@@ -25,7 +25,7 @@ import { GridRenderer } from './grid/visuals/GridRenderer';
 import { GridAnimator } from './grid/visuals/GridAnimator';
 import { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
 import { GridDebugPanel } from './debug-info/components/GridDebugPanel';
-import { useDebugSafe } from '@/components/debug';
+import { useDebugSafe, GlassDebugMenu } from '@/components/debug';
 
 /** Debug mode flag - checks both environment variable and localStorage. */
 const getDebugMode = (): boolean => {
@@ -835,7 +835,25 @@ export function OrbField({
 				}}
 			/>
 
-			{isDebugMode && gridConfig && viewportCells && (
+			{/* GlassDebugMenu - on mobile includes all debug info, on desktop just toggles */}
+			<GlassDebugMenu
+				orbs={orbs}
+				targetOrbCount={targetOrbCount}
+				selectedOrbId={selectedOrbId}
+				selectedOrb={selectedOrbData}
+				orbSize={orbSize}
+				onSelectOrb={selectOrb}
+				onDeleteOrb={handleDeleteOrb}
+				onSizeChange={setOrbSize}
+				gridConfig={gridConfig}
+				viewportCells={viewportCells}
+				currentLayer={currentLayer}
+				onLayerChange={setCurrentLayer}
+				hoveredCell={hoveredCell}
+			/>
+
+			{/* Desktop-only: separate debug panels (hidden on mobile) */}
+			{isDebugMode && gridConfig && viewportCells && !isMobile && (
 				<div
 					style={{
 						position: 'fixed',

@@ -148,9 +148,20 @@ export function useDeviceOrientation(): DeviceOrientation {
 		const offsetX = rawTiltX - initialX;
 		const offsetY = rawTiltY - initialY;
 
-		// Re-center to 0.5 and clamp to 0-1 range
-		tiltX = clamp(0.5 + offsetX, 0, 1);
-		tiltY = clamp(0.5 + offsetY, 0, 1);
+		// Circular clamping: limit magnitude to max radius
+		const MAX_RADIUS = 0.5; // Max distance from center (allows full 0-1 range)
+		const magnitude = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+
+		if (magnitude > MAX_RADIUS) {
+			// Normalize to circle edge - smoothly slide along the boundary
+			const scale = MAX_RADIUS / magnitude;
+			tiltX = 0.5 + offsetX * scale;
+			tiltY = 0.5 + offsetY * scale;
+		} else {
+			// Within circle - use values as-is
+			tiltX = 0.5 + offsetX;
+			tiltY = 0.5 + offsetY;
+		}
 	}
 
 	return { tiltX, tiltY, rawTiltX, rawTiltY, hasPermission };

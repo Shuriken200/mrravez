@@ -90,6 +90,7 @@ export function OrbField({
 	const burstTimeRef = useRef<number | null>(null); // Track when burst happened for delayed continuous spawning
 	const mousePosRef = useRef<{ x: number; y: number } | null>(null); // Track mouse position for orb repulsion
 	const hasBurstRef = useRef(false); // Track if burst has already happened (prevent double burst)
+	const isPageVisibleRef = useRef(typeof document !== 'undefined' ? !document.hidden : true); // Track if page/tab is visible (pause spawning when hidden)
 
 	// =========================================================================
 	// React State for UI
@@ -179,15 +180,44 @@ export function OrbField({
 			mousePosRef.current = null;
 		};
 
+		// Track page visibility AND window focus to pause spawning when inactive
+		// visibilitychange: fires when tab is hidden (e.g., switching browser tabs)
+		// blur/focus: fires when window loses/gains focus (e.g., switching to another app)
+		const updateVisibility = () => {
+			const isVisible = document.hasFocus() && !document.hidden;
+			isPageVisibleRef.current = isVisible;
+		};
+
+		const handleVisibilityChange = () => {
+			updateVisibility();
+		};
+
+		const handleWindowFocus = () => {
+			isPageVisibleRef.current = !document.hidden;
+		};
+
+		const handleWindowBlur = () => {
+			isPageVisibleRef.current = false;
+		};
+
+		// Set initial visibility state
+		updateVisibility();
+
 		handleResize();
 		window.addEventListener('resize', handleResize);
 		window.addEventListener('mousemove', handleGlobalMouseMove);
 		document.addEventListener('mouseleave', handleGlobalMouseLeave);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('focus', handleWindowFocus);
+		window.addEventListener('blur', handleWindowBlur);
 
 		return () => {
 			window.removeEventListener('resize', handleResize);
 			window.removeEventListener('mousemove', handleGlobalMouseMove);
 			document.removeEventListener('mouseleave', handleGlobalMouseLeave);
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('focus', handleWindowFocus);
+			window.removeEventListener('blur', handleWindowBlur);
 			cancelAnimationFrame(frameId);
 		};
 	}, []);
@@ -311,9 +341,10 @@ export function OrbField({
 			}
 
 			// Phase 10: Continuous spawning to maintain target orb count
+			// Only spawn if page is visible and burst has happened
 			const burstTime = burstTimeRef.current;
 			const { targetOrbCountAt4K, referenceScreenArea, delayAfterBurstMs, baseSpawnRateAt4K, maxSpawnsPerFrame } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
-			if (burstTime && (now - burstTime) > delayAfterBurstMs) {
+			if (burstTime && (now - burstTime) > delayAfterBurstMs && isPageVisibleRef.current) {
 				// Scale target and spawn rate linearly with screen area
 				// At 4K (3840x2160): 1000 orbs, at 1080p (1920x1080): ~250 orbs
 				const screenArea = ws.width * ws.height;

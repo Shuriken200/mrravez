@@ -71,8 +71,16 @@ export class GridRenderer {
 			filledCellColor
 		} = styleConfig;
 
-		// Calculate animation boundaries
-		const fadeEndY = startYOffset + progress * (height + endYOffset - startYOffset);
+		// Calculate extra cells needed based on scroll offset
+		// Negative offset = scrolled down/right, need extra cells at bottom/right
+		// Positive offset = scrolled up/left, need extra cells at top/left
+		const extraCellsTop = offsetY > 0 ? Math.ceil(offsetY / cellSizeYPx) + 1 : 0;
+		const extraCellsBottom = offsetY < 0 ? Math.ceil(Math.abs(offsetY) / cellSizeYPx) + 1 : 0;
+		const extraCellsLeft = offsetX > 0 ? Math.ceil(offsetX / cellSizeXPx) + 1 : 0;
+		const extraCellsRight = offsetX < 0 ? Math.ceil(Math.abs(offsetX) / cellSizeXPx) + 1 : 0;
+
+		// Calculate animation boundaries (extend for offset to ensure animation covers shifted viewport)
+		const fadeEndY = startYOffset + progress * (height + endYOffset - startYOffset + Math.abs(offsetY));
 		const whiteStartY = fadeEndY - fadeInDistance;
 
 		ctx.clearRect(0, 0, width, height);
@@ -93,7 +101,11 @@ export class GridRenderer {
 				cellSizeXPx,
 				cellSizeYPx,
 				currentLayer,
-				filledCellColor
+				filledCellColor,
+				extraCellsTop,
+				extraCellsBottom,
+				extraCellsLeft,
+				extraCellsRight
 			);
 		}
 
@@ -114,7 +126,11 @@ export class GridRenderer {
 			lineColorGrey,
 			baseAlpha,
 			whiteAlpha,
-			lineWidth
+			lineWidth,
+			extraCellsTop,
+			extraCellsBottom,
+			extraCellsLeft,
+			extraCellsRight
 		);
 
 		// Phase 3: Draw hover highlight (only after reveal completes)
@@ -145,6 +161,11 @@ export class GridRenderer {
 	 * Draws cells that are occupied (CELL_FILLED and CELL_PROXIMITY states).
 	 * Renders in two passes to ensure red orb bodies always appear above yellow zones.
 	 * Uses bit flags so cells can have multiple states simultaneously.
+	 * 
+	 * @param extraCellsTop - Additional cells to render above viewport (for scroll offset).
+	 * @param extraCellsBottom - Additional cells to render below viewport (for scroll offset).
+	 * @param extraCellsLeft - Additional cells to render left of viewport (for scroll offset).
+	 * @param extraCellsRight - Additional cells to render right of viewport (for scroll offset).
 	 */
 	private static drawOccupiedCells(
 		ctx: CanvasRenderingContext2D,
@@ -156,12 +177,22 @@ export class GridRenderer {
 		cellSizeXPx: number,
 		cellSizeYPx: number,
 		currentLayer: number,
-		fillColor: string
+		fillColor: string,
+		extraCellsTop: number = 0,
+		extraCellsBottom: number = 0,
+		extraCellsLeft: number = 0,
+		extraCellsRight: number = 0
 	): void {
+		// Calculate extended loop bounds
+		const cyStart = -extraCellsTop;
+		const cyEnd = (endCellY - startCellY) + extraCellsBottom;
+		const cxStart = -extraCellsLeft;
+		const cxEnd = (endCellX - startCellX) + extraCellsRight;
+
 		// Pass 1: Draw ALL proximity cells (yellow/avoidance zones)
 		ctx.fillStyle = 'rgba(255, 220, 0, 0.5)'; // Brighter yellow with more opacity
-		for (let cy = 0; cy <= (endCellY - startCellY); cy++) {
-			for (let cx = 0; cx <= (endCellX - startCellX); cx++) {
+		for (let cy = cyStart; cy <= cyEnd; cy++) {
+			for (let cx = cxStart; cx <= cxEnd; cx++) {
 				const cellX = startCellX + cx;
 				const cellY = startCellY + cy;
 				const state = grid.getCell(cellX, cellY, currentLayer);
@@ -174,8 +205,8 @@ export class GridRenderer {
 
 		// Pass 2: Draw ALL filled cells (red/orb bodies) on top
 		ctx.fillStyle = fillColor;
-		for (let cy = 0; cy <= (endCellY - startCellY); cy++) {
-			for (let cx = 0; cx <= (endCellX - startCellX); cx++) {
+		for (let cy = cyStart; cy <= cyEnd; cy++) {
+			for (let cx = cxStart; cx <= cxEnd; cx++) {
 				const cellX = startCellX + cx;
 				const cellY = startCellY + cy;
 				const state = grid.getCell(cellX, cellY, currentLayer);
@@ -189,6 +220,11 @@ export class GridRenderer {
 
 	/**
 	 * Draws the grid lines with reveal animation gradient.
+	 * 
+	 * @param extraCellsTop - Additional cells to render above viewport (for scroll offset).
+	 * @param extraCellsBottom - Additional cells to render below viewport (for scroll offset).
+	 * @param extraCellsLeft - Additional cells to render left of viewport (for scroll offset).
+	 * @param extraCellsRight - Additional cells to render right of viewport (for scroll offset).
 	 */
 	private static drawGridLines(
 		ctx: CanvasRenderingContext2D,
@@ -206,11 +242,25 @@ export class GridRenderer {
 		lineColorGrey: { r: number; g: number; b: number },
 		baseAlpha: number,
 		whiteAlpha: number,
-		lineWidth: number
+		lineWidth: number,
+		extraCellsTop: number = 0,
+		extraCellsBottom: number = 0,
+		extraCellsLeft: number = 0,
+		extraCellsRight: number = 0
 	): void {
 		ctx.lineWidth = lineWidth;
 
-		for (let cy = 0; cy <= (endCellY - startCellY); cy++) {
+		// Calculate extended loop bounds
+		const cyStart = -extraCellsTop;
+		const cyEnd = (endCellY - startCellY) + extraCellsBottom;
+		const cxStart = -extraCellsLeft;
+		const cxEnd = (endCellX - startCellX) + extraCellsRight;
+
+		// Calculate extended width for horizontal lines
+		const extendedLineStartX = cxStart * cellSizeXPx;
+		const extendedLineEndX = (cxEnd + 1) * cellSizeXPx;
+
+		for (let cy = cyStart; cy <= cyEnd; cy++) {
 			const y = cy * cellSizeYPx;
 			if (y > fadeEndY) continue;
 
@@ -238,14 +288,14 @@ export class GridRenderer {
 
 			ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
 
-			// Draw horizontal line
+			// Draw horizontal line (extended to cover scroll offset)
 			ctx.beginPath();
-			ctx.moveTo(0, y);
-			ctx.lineTo(width, y);
+			ctx.moveTo(extendedLineStartX, y);
+			ctx.lineTo(extendedLineEndX, y);
 			ctx.stroke();
 
-			// Draw vertical lines for this row segment
-			for (let cx = 0; cx <= (endCellX - startCellX); cx++) {
+			// Draw vertical lines for this row segment (extended range)
+			for (let cx = cxStart; cx <= cxEnd; cx++) {
 				const x = cx * cellSizeXPx;
 				const lineEndY = Math.min((cy + 1) * cellSizeYPx, fadeEndY);
 

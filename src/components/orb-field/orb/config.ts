@@ -86,7 +86,7 @@ export const DEFAULT_ORB_SPAWN_CONFIG: OrbSpawnConfig = {
 	maxSpeed: 150,
 	defaultSize: 1,
 	minSize: 1,
-	maxSize: 40,
+	maxSize: 20,
 };
 
 /**

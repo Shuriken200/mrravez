@@ -9,4 +9,5 @@ export { PhaseLayerAttraction } from './PhaseLayerAttraction';
 export { PhaseOrbInteraction } from './PhaseOrbInteraction';
 export { PhaseWallCollision } from './PhaseWallCollision';
 export { PhaseGridMarking } from './PhaseGridMarking';
-export { PhaseLifecycle } from './PhaseLifecycle';
+export { PhaseExpiration } from './PhaseExpiration';
+export { PhaseContinuousSpawn } from './PhaseContinuousSpawn';

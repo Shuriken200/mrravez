@@ -4,7 +4,7 @@
 // OrbField - Controller Component for Grid and Orb Systems
 // =============================================================================
 
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useOrbManager } from './orb/hooks/useOrbManager';
 import {
 	DEFAULT_REVEAL_CONFIG,
@@ -14,8 +14,6 @@ import {
 	type GridStyleConfig,
 } from './shared/config';
 import { DEFAULT_CONTINUOUS_SPAWN_CONFIG } from './orb/config';
-import { OrbVisualRenderer } from './orb/visuals/OrbVisualRenderer';
-import { GridRenderer } from './grid/visuals/GridRenderer';
 import { OrbDebugPanel, GridDebugPanel } from './debug-info';
 import { GlassDebugMenu } from '@/components/debug';
 import {
@@ -26,6 +24,11 @@ import {
 	usePhysicsLoop,
 	useGridInitialization,
 	useOrbFieldInteractions,
+	useCanvasSync,
+	useOpacityFade,
+	useOpacityRef,
+	useOrbBurst,
+	useRenderLoop,
 } from './hooks';
 import styles from './OrbField.module.css';
 
@@ -61,10 +64,9 @@ interface OrbFieldProps {
  * Main controller component for the Orb Field visualization system.
  *
  * Responsibilities:
- * - Orchestrates grid initialization and resize handling
- * - Manages animation and physics loop
- * - Delegates orb management to useOrbManager hook
- * - Delegates rendering to GridRenderer
+ * - Initializes hooks
+ * - Composes JSX
+ * - No business logic (delegated to hooks)
  *
  * @param props - Component configuration props.
  */
@@ -82,67 +84,27 @@ export function OrbField({
 	deviceTiltY = 0.5,
 }: OrbFieldProps) {
 	// =========================================================================
-	// Refs for High-Performance Loop
+	// Refs
 	// =========================================================================
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const visualCanvasRef = useRef<HTMLCanvasElement>(null);
 	const currentLayerRef = useRef(initialLayer);
-	const burstTimeRef = useRef<number | null>(null);
-	const hasBurstRef = useRef(false);
 
 	// =========================================================================
-	// React State for UI
+	// State
 	// =========================================================================
 	const [currentLayer, setCurrentLayer] = useState(initialLayer);
 	const [orbSize, setOrbSize] = useState(1);
 
 	// =========================================================================
-	// Custom Hooks
+	// Hooks
 	// =========================================================================
 	const { windowSize, mousePosRef, isPageVisibleRef, isMounted } = useEventHandlers();
-
-	const {
-		gridConfig,
-		viewportCells,
-		gridRef,
-		viewportCellsRef,
-	} = useGridInitialization({ windowSize, isMobile });
-
-	const {
-		showGridRef,
-		showCollisionAreaRef,
-		showAvoidanceAreaRef,
-		showGraphicsRef,
-		enableOrbSpawningRef,
-		enableOrbDespawningRef,
-		enableSpawnOnClickRef,
-		pausePhysicsRef,
-		disableCollisionsRef,
-		disableAvoidanceRef,
-		showArrowVectorRef,
-		showTruePositionRef,
-		isDebugModeRef,
-		isDebugMode,
-		getEffectiveTime,
-	} = useDebugStateSync();
-
+	const { gridConfig, viewportCells, gridRef, viewportCellsRef } = useGridInitialization({ windowSize, isMobile });
+	const debugState = useDebugStateSync();
 	const currentScrollOffsetRef = useParallaxOffset(scrollProgress, isMobile, deviceTiltX, deviceTiltY);
 
-	const {
-		orbsRef,
-		orbs,
-		selectedOrbId,
-		selectedOrbData,
-		selectedOrbIdRef,
-		createOrb,
-		spawnOrbBurst,
-		spawnRandomOrbs,
-		deleteOrb,
-		selectOrb,
-		updateSelectedOrbData,
-		syncOrbsState,
-	} = useOrbManager();
-
+	const orbManager = useOrbManager();
 	const {
 		hoveredCell,
 		hoveredCellRef,
@@ -159,15 +121,34 @@ export function OrbField({
 		gridRef,
 		currentLayerRef,
 		orbSize,
-		isDebugMode,
+		isDebugMode: debugState.isDebugMode,
 		currentScrollOffsetRef,
-		enableSpawnOnClickRef,
-		createOrb,
-		deleteOrb,
+		enableSpawnOnClickRef: debugState.enableSpawnOnClickRef,
+		createOrb: orbManager.createOrb,
+		deleteOrb: orbManager.deleteOrb,
+	});
+
+	const { burstTimeRef } = useOrbBurst({
+		triggerBurst,
+		spawnOrbBurst: orbManager.spawnOrbBurst,
+		windowSize,
+		currentScrollOffsetRef,
+		gridRef,
+		viewportCellsRef,
+	});
+
+	const { syncCanvasDimensions } = useCanvasSync();
+	const { calculateOpacity, updateOpacity } = useOpacityFade();
+	const opacityRef = useOpacityRef(opacity);
+
+	const { runPhysics } = usePhysicsLoop({
+		getEffectiveTime: debugState.getEffectiveTime,
+		spawnRandomOrbs: orbManager.spawnRandomOrbs,
+		syncOrbsState: orbManager.syncOrbsState,
 	});
 
 	// =========================================================================
-	// Memoized Configs
+	// Configs
 	// =========================================================================
 	const revealConfig = useMemo(
 		() => ({ ...DEFAULT_REVEAL_CONFIG, ...revealOverrides }),
@@ -186,126 +167,52 @@ export function OrbField({
 		return Math.max(minOrbCount, scaledCount);
 	}, [windowSize]);
 
-	const opacityRef = useRef(opacity);
-	useEffect(() => { opacityRef.current = opacity; }, [opacity]);
 	useEffect(() => { currentLayerRef.current = currentLayer; }, [currentLayer]);
 
 	// =========================================================================
-	// Physics Loop
+	// Render Loop
 	// =========================================================================
-	const { runPhysics } = usePhysicsLoop({
-		getEffectiveTime,
-		spawnRandomOrbs,
-		syncOrbsState,
-	});
-
-	// =========================================================================
-	// Rendering Loop
-	// =========================================================================
-	const runLoop = useCallback((easedProgress: number, deltaTime: number) => {
-		const canvas = canvasRef.current;
-		const visualCanvas = visualCanvasRef.current;
-		const grid = gridRef.current;
-		const vpc = viewportCellsRef.current;
-		const hoveredCell = hoveredCellRef.current;
-
-		if (!canvas || !grid || !vpc || windowSize.width === 0) return;
-
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
-
-		// Run physics simulation
-		runPhysics(
-			easedProgress,
-			deltaTime,
-			orbsRef,
-			grid,
-			vpc,
-			windowSize,
-			mousePosRef,
-			isPageVisibleRef,
-			burstTimeRef,
-			pausePhysicsRef,
-			disableCollisionsRef,
-			disableAvoidanceRef,
-			enableOrbSpawningRef,
-			enableOrbDespawningRef
-		);
-
-		// Canvas Size Sync
-		if (canvas.width !== windowSize.width || canvas.height !== windowSize.height) {
-			canvas.width = windowSize.width;
-			canvas.height = windowSize.height;
-		}
-		if (visualCanvas && (visualCanvas.width !== windowSize.width || visualCanvas.height !== windowSize.height)) {
-			visualCanvas.width = windowSize.width;
-			visualCanvas.height = windowSize.height;
-		}
-
-		// Opacity Fade Logic
-		let finalOpacity = opacityRef.current;
-		if (!isDebugModeRef.current) {
-			const fadeStart = DEFAULT_ORBFIELD_CONFIG.fadeOutStart;
-			if (easedProgress > fadeStart) {
-				const fadeFactor = (easedProgress - fadeStart) / (1 - fadeStart);
-				finalOpacity *= (1 - fadeFactor);
-			}
-		} else {
-			finalOpacity = 1;
-		}
-		canvas.style.opacity = finalOpacity.toString();
-
-		// Render Debug Frame
-		GridRenderer.draw(
-			ctx,
-			windowSize,
-			vpc,
-			easedProgress,
+	const { runLoop } = useRenderLoop(
+		{
+			runPhysics,
+			syncCanvasDimensions,
+			calculateOpacity,
+			updateOpacity,
+			getEffectiveTime: debugState.getEffectiveTime,
+			updateSelectedOrbData: orbManager.updateSelectedOrbData,
 			revealConfig,
 			styleConfig,
-			isDebugMode && enableSpawnOnClickRef.current ? hoveredCell : null,
-			grid,
-			currentLayerRef.current,
-			isDebugMode ? orbsRef.current : [],
-			undefined,
-			currentScrollOffsetRef.current.x,
-			currentScrollOffsetRef.current.y,
-			showGridRef.current,
-			showCollisionAreaRef.current,
-			showAvoidanceAreaRef.current,
-			showArrowVectorRef.current,
-			showTruePositionRef.current
-		);
+		},
+		canvasRef,
+		visualCanvasRef,
+		gridRef,
+		viewportCellsRef,
+		hoveredCellRef,
+		windowSize,
+		orbManager.orbsRef,
+		orbManager.selectedOrbIdRef,
+		currentLayerRef,
+		currentScrollOffsetRef,
+		mousePosRef,
+		isPageVisibleRef,
+		burstTimeRef,
+		debugState.showGridRef,
+		debugState.showCollisionAreaRef,
+		debugState.showAvoidanceAreaRef,
+		debugState.showGraphicsRef,
+		debugState.showArrowVectorRef,
+		debugState.showTruePositionRef,
+		debugState.pausePhysicsRef,
+		debugState.disableCollisionsRef,
+		debugState.disableAvoidanceRef,
+		debugState.enableOrbSpawningRef,
+		debugState.enableOrbDespawningRef,
+		debugState.enableSpawnOnClickRef,
+		debugState.isDebugModeRef,
+		debugState.isDebugMode,
+		opacityRef
+	);
 
-		// Render Visual Orbs
-		if (visualCanvas && easedProgress >= 1) {
-			const visualCtx = visualCanvas.getContext('2d');
-			if (visualCtx) {
-				if (showGraphicsRef.current) {
-					const now = getEffectiveTime();
-					OrbVisualRenderer.draw(
-						visualCtx,
-						windowSize,
-						orbsRef.current,
-						grid.config.layers,
-						undefined,
-						now,
-						currentScrollOffsetRef.current.x,
-						currentScrollOffsetRef.current.y
-					);
-				} else {
-					visualCtx.clearRect(0, 0, windowSize.width, windowSize.height);
-				}
-			}
-		}
-
-		// Debug Panel Sync
-		if (isDebugMode && selectedOrbIdRef.current) {
-			updateSelectedOrbData();
-		}
-	}, [windowSize, orbsRef, selectedOrbIdRef, updateSelectedOrbData, getEffectiveTime, revealConfig, styleConfig, isDebugMode, currentScrollOffsetRef, showGridRef, showCollisionAreaRef, showAvoidanceAreaRef, showGraphicsRef, showArrowVectorRef, showTruePositionRef, isDebugModeRef, runPhysics, mousePosRef, isPageVisibleRef, burstTimeRef, pausePhysicsRef, disableCollisionsRef, disableAvoidanceRef, enableOrbSpawningRef, enableOrbDespawningRef, enableSpawnOnClickRef, gridRef, viewportCellsRef, hoveredCellRef]);
-
-	// Animation Loop
 	useAnimationLoop({
 		visible,
 		gridConfig,
@@ -313,32 +220,6 @@ export function OrbField({
 		onLoop: runLoop,
 		onAnimationComplete,
 	});
-
-	// =========================================================================
-	// Orb Burst Trigger
-	// =========================================================================
-	useEffect(() => {
-		if (!triggerBurst || hasBurstRef.current) return;
-
-		const checkAndBurst = () => {
-			if (hasBurstRef.current) return;
-
-			const grid = gridRef.current;
-			const vpc = viewportCellsRef.current;
-
-			if (grid && vpc && windowSize.width > 0) {
-				hasBurstRef.current = true;
-				const centerX = (windowSize.width / 2) - currentScrollOffsetRef.current.x;
-				const centerY = (windowSize.height / 2) - currentScrollOffsetRef.current.y;
-				spawnOrbBurst(centerX, centerY, grid, vpc);
-				burstTimeRef.current = performance.now();
-			} else {
-				requestAnimationFrame(checkAndBurst);
-			}
-		};
-
-		checkAndBurst();
-	}, [triggerBurst, spawnOrbBurst, windowSize, currentScrollOffsetRef, gridRef, viewportCellsRef]);
 
 	// =========================================================================
 	// Render
@@ -359,18 +240,18 @@ export function OrbField({
 				onTouchCancel={handleTouchEnd}
 				className={styles.debugCanvas}
 				style={{
-					pointerEvents: isDebugMode ? 'auto' : 'none',
+					pointerEvents: debugState.isDebugMode ? 'auto' : 'none',
 					opacity,
 				}}
 			/>
 
 			<GlassDebugMenu
-				orbs={orbs}
+				orbs={orbManager.orbs}
 				targetOrbCount={targetOrbCount}
-				selectedOrbId={selectedOrbId}
-				selectedOrb={selectedOrbData}
+				selectedOrbId={orbManager.selectedOrbId}
+				selectedOrb={orbManager.selectedOrbData}
 				orbSize={orbSize}
-				onSelectOrb={selectOrb}
+				onSelectOrb={orbManager.selectOrb}
 				onDeleteOrb={handleDeleteOrb}
 				onSizeChange={setOrbSize}
 				gridConfig={gridConfig}
@@ -380,15 +261,15 @@ export function OrbField({
 				hoveredCell={hoveredCell}
 			/>
 
-			{isDebugMode && gridConfig && viewportCells && !isMobile && (
+			{debugState.isDebugMode && gridConfig && viewportCells && !isMobile && (
 				<div className={styles.debugPanelContainer}>
 					<OrbDebugPanel
-						orbs={orbs}
+						orbs={orbManager.orbs}
 						targetOrbCount={targetOrbCount}
-						selectedOrbId={selectedOrbId}
-						selectedOrb={selectedOrbData}
+						selectedOrbId={orbManager.selectedOrbId}
+						selectedOrb={orbManager.selectedOrbData}
 						orbSize={orbSize}
-						onSelectOrb={selectOrb}
+						onSelectOrb={orbManager.selectOrb}
 						onDeleteOrb={handleDeleteOrb}
 						onSizeChange={setOrbSize}
 					/>

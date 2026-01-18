@@ -5,10 +5,9 @@
 // =============================================================================
 
 import { useCallback } from 'react';
-import { type Orb } from '../orb/types';
+import { type PhysicsContext } from './types';
 import { SpatialGrid } from '../grid/core/SpatialGrid';
 import { type ViewportCells } from '../grid/types';
-import { type WindowSize } from '../shared/types';
 import {
 	PhaseGridMarking,
 	PhaseMouseRepulsion,
@@ -17,7 +16,8 @@ import {
 	PhaseLayerAttraction,
 	PhaseOrbInteraction,
 	PhaseWallCollision,
-	PhaseLifecycle,
+	PhaseExpiration,
+	PhaseContinuousSpawn,
 } from '../physics';
 
 /**
@@ -37,22 +37,7 @@ interface UsePhysicsLoopOptions {
  */
 export interface UsePhysicsLoopReturn {
 	/** Runs the physics simulation for one frame. */
-	runPhysics: (
-		easedProgress: number,
-		deltaTime: number,
-		orbsRef: React.MutableRefObject<Orb[]>,
-		grid: SpatialGrid,
-		vpc: ViewportCells,
-		windowSize: WindowSize,
-		mousePosRef: React.MutableRefObject<{ x: number; y: number } | null>,
-		isPageVisibleRef: React.MutableRefObject<boolean>,
-		burstTimeRef: React.MutableRefObject<number | null>,
-		pausePhysicsRef: React.MutableRefObject<boolean>,
-		disableCollisionsRef: React.MutableRefObject<boolean>,
-		disableAvoidanceRef: React.MutableRefObject<boolean>,
-		enableOrbSpawningRef: React.MutableRefObject<boolean>,
-		enableOrbDespawningRef: React.MutableRefObject<boolean>
-	) => void;
+	runPhysics: (context: PhysicsContext) => void;
 }
 
 /**
@@ -63,22 +48,24 @@ export interface UsePhysicsLoopReturn {
 export function usePhysicsLoop(options: UsePhysicsLoopOptions): UsePhysicsLoopReturn {
 	const { getEffectiveTime, spawnRandomOrbs, syncOrbsState } = options;
 
-	const runPhysics = useCallback((
-		easedProgress: number,
-		deltaTime: number,
-		orbsRef: React.MutableRefObject<Orb[]>,
-		grid: SpatialGrid,
-		vpc: ViewportCells,
-		windowSize: WindowSize,
-		mousePosRef: React.MutableRefObject<{ x: number; y: number } | null>,
-		isPageVisibleRef: React.MutableRefObject<boolean>,
-		burstTimeRef: React.MutableRefObject<number | null>,
-		pausePhysicsRef: React.MutableRefObject<boolean>,
-		disableCollisionsRef: React.MutableRefObject<boolean>,
-		disableAvoidanceRef: React.MutableRefObject<boolean>,
-		enableOrbSpawningRef: React.MutableRefObject<boolean>,
-		enableOrbDespawningRef: React.MutableRefObject<boolean>
-	) => {
+	const runPhysics = useCallback((context: PhysicsContext) => {
+		const {
+			easedProgress,
+			deltaTime,
+			orbsRef,
+			grid,
+			vpc,
+			windowSize,
+			mousePosRef,
+			isPageVisibleRef,
+			burstTimeRef,
+			pausePhysicsRef,
+			disableCollisionsRef,
+			disableAvoidanceRef,
+			enableOrbSpawningRef,
+			enableOrbDespawningRef,
+		} = context;
+
 		if (easedProgress >= 1 && !pausePhysicsRef.current) {
 			const currentOrbs = orbsRef.current;
 
@@ -106,9 +93,19 @@ export function usePhysicsLoop(options: UsePhysicsLoopOptions): UsePhysicsLoopRe
 			// Phase 8: Re-mark at new positions
 			PhaseGridMarking.markFinal(currentOrbs, grid, vpc);
 
-			// Phase 9-10: Remove expired orbs and spawn new ones
+			// Phase 9: Remove expired orbs
 			const now = getEffectiveTime();
-			PhaseLifecycle.execute(
+			PhaseExpiration.execute(
+				orbsRef,
+				grid,
+				vpc,
+				now,
+				enableOrbDespawningRef.current,
+				syncOrbsState
+			);
+
+			// Phase 10: Continuous spawning
+			PhaseContinuousSpawn.execute(
 				orbsRef,
 				grid,
 				vpc,
@@ -116,10 +113,8 @@ export function usePhysicsLoop(options: UsePhysicsLoopOptions): UsePhysicsLoopRe
 				now,
 				burstTimeRef.current,
 				isPageVisibleRef.current,
-				enableOrbDespawningRef.current,
 				enableOrbSpawningRef.current,
-				spawnRandomOrbs,
-				syncOrbsState
+				spawnRandomOrbs
 			);
 		} else if (easedProgress >= 1 && pausePhysicsRef.current) {
 			// When paused, still mark orbs for rendering

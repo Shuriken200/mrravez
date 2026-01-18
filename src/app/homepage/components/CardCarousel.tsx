@@ -9,6 +9,7 @@ import type { AllSectionVisibility, SectionVisibility } from "../types";
 interface CardCarouselProps {
 	visibility: AllSectionVisibility;
 	isReady: boolean;
+	activeSection: number;
 }
 
 // Shared card wrapper styles
@@ -31,12 +32,14 @@ function AnimatedCard({
 	padding = "clamp(24px, 5vw, 40px)",
 	mobilePadding,
 	mobileBorderRadius,
+	ariaLabel,
 }: {
 	children: React.ReactNode;
 	visibility: SectionVisibility;
 	padding?: string;
 	mobilePadding?: string;
 	mobileBorderRadius?: number;
+	ariaLabel?: string;
 }) {
 	return (
 		<GlassCard
@@ -53,6 +56,7 @@ function AnimatedCard({
 			wheelRotateY={visibility.wheelRotateY}
 			wheelTranslateX={visibility.wheelTranslateX}
 			wheelTranslateZ={visibility.wheelTranslateZ}
+			ariaLabel={ariaLabel}
 		>
 			{children}
 		</GlassCard>
@@ -66,7 +70,7 @@ function AnimatedCard({
  * Animation/transition logic is handled here via GlassCard wrapper,
  * card components only handle their content
  */
-export function CardCarousel({ visibility, isReady }: CardCarouselProps) {
+export function CardCarousel({ visibility, isReady, activeSection }: CardCarouselProps) {
 	// Track if cards have faded in (for initial appearance animation)
 	const [hasFadedIn, setHasFadedIn] = useState(false);
 
@@ -121,14 +125,37 @@ export function CardCarousel({ visibility, isReady }: CardCarouselProps) {
 		willChange: 'opacity',
 	};
 
+	const sectionNames = ["About", "Links", "Contact"];
+
 	return (
-		<div style={wrapperStyle}>
+		<div
+			style={wrapperStyle}
+			role="region"
+			aria-roledescription="carousel"
+			aria-label="Leon's Profile"
+		>
+			{/* Screen reader announcement for section changes */}
+			<div className="sr-only" aria-live="polite" aria-atomic="true" style={{
+				position: 'absolute',
+				width: '1px',
+				height: '1px',
+				padding: '0',
+				margin: '-1px',
+				overflow: 'hidden',
+				clip: 'rect(0, 0, 0, 0)',
+				whiteSpace: 'nowrap',
+				borderWidth: '0'
+			}}>
+				{`Now showing: ${sectionNames[activeSection]} section`}
+			</div>
+
 			{/* Profile card with scroll-based fade in/out */}
 			<AnimatedCard
 				visibility={profile}
 				padding="clamp(16px, 4vw, 30px)"
 				mobilePadding="20px"
 				mobileBorderRadius={40}
+				ariaLabel="About section"
 			>
 				<ProfileCard />
 			</AnimatedCard>
@@ -139,6 +166,7 @@ export function CardCarousel({ visibility, isReady }: CardCarouselProps) {
 				padding="clamp(16px, 4vw, 30px)"
 				mobilePadding="20px"
 				mobileBorderRadius={40}
+				ariaLabel="Links section"
 			>
 				<LinksCard />
 			</AnimatedCard>
@@ -149,6 +177,7 @@ export function CardCarousel({ visibility, isReady }: CardCarouselProps) {
 				padding="clamp(16px, 4vw, 30px)"
 				mobilePadding="20px"
 				mobileBorderRadius={40}
+				ariaLabel="Contact section"
 			>
 				<ContactCard />
 			</AnimatedCard>

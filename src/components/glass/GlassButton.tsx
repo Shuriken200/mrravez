@@ -30,6 +30,18 @@ export function GlassButton({ icon, label, href, target, rel }: GlassButtonProps
 		}, 100);
 	}, []);
 
+	const handleFocus = useCallback(() => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current);
+			timeoutRef.current = null;
+		}
+		setIsHovered(true);
+	}, []);
+
+	const handleBlur = useCallback(() => {
+		setIsHovered(false);
+	}, []);
+
 	useEffect(() => {
 		return () => {
 			if (timeoutRef.current) {
@@ -147,9 +159,11 @@ export function GlassButton({ icon, label, href, target, rel }: GlassButtonProps
 				href={href}
 				target={target}
 				rel={rel}
-				className={`glass-button-link${supportsHover && isHovered ? ' is-hovered' : ''}`}
+				className={`glass-button-link${isHovered ? ' is-hovered' : ''}`}
 				onMouseEnter={supportsHover ? handleMouseEnter : undefined}
 				onMouseLeave={supportsHover ? handleMouseLeave : undefined}
+				onFocus={handleFocus}
+				onBlur={handleBlur}
 			>
 				<div className="glass-button-content">
 					<span className="glass-button-icon">
@@ -158,7 +172,7 @@ export function GlassButton({ icon, label, href, target, rel }: GlassButtonProps
 					<span className="glass-button-label">
 						{label}
 					</span>
-					<span className="glass-button-arrow">
+					<span className="glass-button-arrow" aria-hidden="true">
 						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 							<path d="M5 12h14M12 5l7 7-7 7" />
 						</svg>

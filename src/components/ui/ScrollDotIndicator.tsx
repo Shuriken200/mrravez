@@ -1,34 +1,34 @@
 "use client";
 
 interface ScrollDotIndicatorProps {
-    totalSections: number;
-    activeSection: number;
-    onDotClick: (index: number) => void;
-    visible: boolean;
-    theme: "light" | "dark";
+	totalSections: number;
+	activeSection: number;
+	onDotClick: (index: number) => void;
+	visible: boolean;
+	theme: "light" | "dark";
 }
 
 export function ScrollDotIndicator({
-    totalSections,
-    activeSection,
-    onDotClick,
-    visible,
-    theme,
+	totalSections,
+	activeSection,
+	onDotClick,
+	visible,
+	theme,
 }: ScrollDotIndicatorProps) {
-    // Don't render at all until visible to prevent flash
-    if (!visible) {
-        return null;
-    }
+	// Don't render at all until visible to prevent flash
+	if (!visible) {
+		return null;
+	}
 
-    // Colors based on theme
-    const activeColor = theme === "dark" ? "#ffffff" : "#000000";
-    const inactiveColor = theme === "dark" ? "#888888" : "#555555";
-    const passedColor = theme === "dark" ? "#444444" : "#999999"; // Deeper grey for passed sections
-    const glowColor = theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.3)";
+	// Colors based on theme
+	const activeColor = theme === "dark" ? "#ffffff" : "#000000";
+	const inactiveColor = theme === "dark" ? "#888888" : "#555555";
+	const passedColor = theme === "dark" ? "#444444" : "#999999"; // Deeper grey for passed sections
+	const glowColor = theme === "dark" ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.3)";
 
-    return (
-        <>
-            <style jsx>{`
+	return (
+		<>
+			<style jsx>{`
                 .dot-indicator {
                     position: fixed;
                     z-index: 50;
@@ -86,8 +86,15 @@ export function ScrollDotIndicator({
                 }
 
                 .dot:focus-visible {
-                    outline: 2px solid var(--color-maroon, #4E0506);
-                    outline-offset: 2px;
+                    outline: 3px solid #ffffff;
+                    outline-offset: 3px;
+                    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.5);
+                    transform: scale(1.3);
+                }
+
+                /* Dark outline for light theme focus */
+                .dot.light-theme:focus-visible {
+                    outline: 3px solid #000000;
                 }
 
                 .dot:active {
@@ -113,36 +120,39 @@ export function ScrollDotIndicator({
                 }
             `}</style>
 
-            <nav 
-                className={`dot-indicator ${visible ? "visible" : ""}`}
-                aria-label="Section navigation"
-            >
-                {Array.from({ length: totalSections }, (_, index) => {
-                    const isActive = activeSection === index;
-                    const isPassed = index < activeSection;
-                    const isUpcoming = index > activeSection;
-                    
-                    let dotClass = "dot";
-                    if (isActive) {
-                        dotClass += " active";
-                    } else if (isPassed) {
-                        dotClass += " passed";
-                    } else if (isUpcoming) {
-                        dotClass += " inactive";
-                    }
-                    
-                    return (
-                        <button
-                            key={index}
-                            className={dotClass}
-                            onClick={() => onDotClick(index)}
-                            aria-label={`Go to section ${index + 1}`}
-                            aria-current={isActive ? "true" : undefined}
-                            type="button"
-                        />
-                    );
-                })}
-            </nav>
-        </>
-    );
+			<nav
+				className={`dot-indicator ${visible ? "visible" : ""}`}
+				aria-label="Section navigation"
+			>
+				{Array.from({ length: totalSections }, (_, index) => {
+					const isActive = activeSection === index;
+					const isPassed = index < activeSection;
+					const isUpcoming = index > activeSection;
+
+					let dotClass = "dot";
+					if (theme === "light") {
+						dotClass += " light-theme";
+					}
+					if (isActive) {
+						dotClass += " active";
+					} else if (isPassed) {
+						dotClass += " passed";
+					} else if (isUpcoming) {
+						dotClass += " inactive";
+					}
+
+					return (
+						<button
+							key={index}
+							className={dotClass}
+							onClick={() => onDotClick(index)}
+							aria-label={`Go to section ${index + 1}`}
+							aria-current={isActive ? "true" : undefined}
+							type="button"
+						/>
+					);
+				})}
+			</nav>
+		</>
+	);
 }

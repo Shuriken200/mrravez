@@ -29,6 +29,8 @@ interface GlassCardProps {
 	wheelTranslateX?: number;
 	/** 3D wheel depth translation (px) for mobile carousel */
 	wheelTranslateZ?: number;
+	/** Optional aria-label for the card */
+	ariaLabel?: string;
 }
 
 export function GlassCard({
@@ -47,6 +49,7 @@ export function GlassCard({
 	wheelRotateY = 0,
 	wheelTranslateX = 0,
 	wheelTranslateZ = 0,
+	ariaLabel,
 }: GlassCardProps) {
 	const cardRef = useRef<HTMLDivElement>(null);
 	// useId generates stable IDs that match between server and client
@@ -246,7 +249,7 @@ export function GlassCard({
 						setIsHovering(false);
 					}
 				}
-				
+
 				// Calculate tilt based on mouse position, scaled by influence
 				calculateTarget(e.clientX, e.clientY, influence);
 				startAnimation();
@@ -266,12 +269,12 @@ export function GlassCard({
 			if (isElementInsideCard(target)) {
 				isHoveringRef.current = true;
 				setIsHovering(true);
-				
+
 				// Calculate target based on the center of the focused element
 				const rect = target.getBoundingClientRect();
 				const centerX = rect.left + rect.width / 2;
 				const centerY = rect.top + rect.height / 2;
-				
+
 				calculateTarget(centerX, centerY, 1);
 				startAnimation();
 			}
@@ -403,6 +406,9 @@ export function GlassCard({
 			ref={cardRef}
 			data-glass-card-id={cardId}
 			className={`${hasMobileOverrides ? styles.mobile : ''} ${className || ''}`.trim() || undefined}
+			role="region"
+			aria-roledescription="slide"
+			aria-label={ariaLabel}
 			style={{
 				position: "relative",
 				perspective: "1200px",
@@ -437,6 +443,7 @@ export function GlassCard({
 				{/* Glass background with backdrop-filter */}
 				<div
 					className="glass-card-bg"
+					aria-hidden="true"
 					style={{
 						position: "absolute",
 						inset: 0,
@@ -458,6 +465,7 @@ export function GlassCard({
 				>
 					{/* Top edge highlight - now clipped by parent overflow:hidden */}
 					<div
+						aria-hidden="true"
 						style={{
 							position: "absolute",
 							top: 0,

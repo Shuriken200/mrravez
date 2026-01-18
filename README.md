@@ -151,8 +151,8 @@ All configurable values are centralised in these files:
 
 ```bash
 # Clone the repository
-git clone https://github.com/ljbdb/de-backer.no.git
-cd de-backer.no
+git clone https://github.com/ljbdb/MrRavez.git
+cd MrRavez
 
 # Install dependencies
 bun install
@@ -212,4 +212,4 @@ bun run build
 bun run start
 ```
 
-- **Website**: [de-backer.no](https://de-backer.no)
+- **Website**: [mrravez.no](https://mrravez.no)

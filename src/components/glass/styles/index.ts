@@ -6,6 +6,7 @@ export {
 	borderRadiusDefaults,
 	paddingDefaults,
 	sliderPositionDefaults,
+	dotIndicatorDefaults,
 	cardDefaults,
 	tiltDefaults,
 } from './animations';

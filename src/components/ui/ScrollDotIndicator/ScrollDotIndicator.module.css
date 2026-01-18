@@ -1,0 +1,162 @@
+.dotIndicator {
+	position: fixed;
+	z-index: 50;
+	display: flex;
+	gap: 12px;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.5s ease, visibility 0.5s ease;
+	pointer-events: none;
+}
+
+.dotIndicator.visible {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+}
+
+/* Desktop: left corner, vertical layout */
+@media (min-width: 768px) {
+	.dotIndicator {
+		left: 32px;
+		top: 50%;
+		transform: translateY(-50%);
+		flex-direction: column;
+	}
+}
+
+/* Mobile: bottom center, horizontal layout */
+/* Positioned below the slider which is at bottom: 80px */
+@media (max-width: 767px) {
+	.dotIndicator {
+		bottom: 32px;
+		left: 50%;
+		transform: translateX(-50%);
+		flex-direction: row;
+	}
+}
+
+/* When slider is visible, dots stay at same position - slider is above them */
+
+.dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	cursor: pointer;
+	transition: 
+		background-color 0.3s ease,
+		box-shadow 0.3s ease,
+		transform 0.2s ease;
+	border: none;
+	padding: 0;
+	outline: none;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.dot:hover {
+	transform: scale(1.2);
+}
+
+.dot:focus-visible {
+	outline: 3px solid #ffffff;
+	outline-offset: 3px;
+	box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.5);
+	transform: scale(1.3);
+}
+
+/* Dark outline for light theme focus */
+.dot.lightTheme:focus-visible {
+	outline: 3px solid #000000;
+}
+
+.dot:active {
+	background-color: var(--color-maroon, #4E0506) !important;
+}
+
+.dot.active {
+	background-color: var(--dot-active-color);
+	box-shadow: 
+		0 0 8px var(--dot-glow-color),
+		0 0 16px var(--dot-glow-color),
+		0 0 24px var(--dot-glow-color);
+}
+
+.dot.inactive {
+	background-color: var(--dot-inactive-color);
+	box-shadow: none;
+}
+
+.dot.passed {
+	background-color: var(--dot-passed-color);
+	box-shadow: none;
+}
+
+.dotWrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.dotLabel {
+	position: absolute;
+	white-space: nowrap;
+	padding: 6px 12px;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: 500;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	z-index: 100;
+	background: var(--label-bg);
+	color: var(--label-color);
+	border: 1px solid var(--label-border);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	backdrop-filter: blur(10px);
+}
+
+.dot:hover + .dotLabel,
+.dot:focus-visible + .dotLabel {
+	opacity: 1;
+}
+
+/* Desktop: label appears to the right */
+@media (min-width: 768px) {
+	.dotLabel {
+		left: calc(100% + 12px);
+		top: 50%;
+		transform: translateY(-50%);
+	}
+}
+
+/* Mobile: label appears above */
+@media (max-width: 767px) {
+	.dotLabel {
+		bottom: calc(100% + 12px);
+		left: 50%;
+		transform: translateX(-50%);
+	}
+}
+
+/* Theme variables - Dark theme */
+.theme-dark {
+	--dot-active-color: #ffffff;
+	--dot-inactive-color: #888888;
+	--dot-passed-color: #444444;
+	--dot-glow-color: rgba(255, 255, 255, 0.6);
+	--label-bg: rgba(0, 0, 0, 0.9);
+	--label-color: #ffffff;
+	--label-border: rgba(255, 255, 255, 0.2);
+}
+
+/* Theme variables - Light theme */
+.theme-light {
+	--dot-active-color: #000000;
+	--dot-inactive-color: #555555;
+	--dot-passed-color: #999999;
+	--dot-glow-color: rgba(0, 0, 0, 0.3);
+	--label-bg: rgba(255, 255, 255, 0.95);
+	--label-color: #000000;
+	--label-border: rgba(0, 0, 0, 0.1);
+}

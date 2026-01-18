@@ -2,12 +2,8 @@
  * Pure calculation functions for homepage visibility and animations
  */
 
-import { SCROLL_ZONES, RESTING_POINTS, SECTION_THRESHOLDS } from './constants';
+import { SCROLL_ZONES, RESTING_POINTS, SECTION_THRESHOLDS, WHEEL_RADIUS, ANGLE_PER_SECTION } from './constants';
 import type { SectionVisibility, GreetingVisibility, WelcomeVisibility, AllSectionVisibility, WheelTransform } from './types';
-
-// 3D Wheel configuration for mobile
-const WHEEL_RADIUS = 600; // px - larger = flatter curve
-const ANGLE_PER_SECTION = 55; // degrees between cards
 
 /**
  * Clamp a value between min and max

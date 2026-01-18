@@ -82,3 +82,13 @@ export interface TouchStartData {
 	lastTime: number;
 }
 
+/**
+ * Selector types for Interface Segregation Principle
+ * Components depend only on the visibility data they need
+ */
+
+export interface ContactVisibilitySelector {
+	entryProgress: number;
+}
+
+

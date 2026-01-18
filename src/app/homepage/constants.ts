@@ -5,6 +5,11 @@
 // Total scroll sections (in viewport units)
 export const TOTAL_SECTIONS = 4;
 
+// 3D Wheel configuration for mobile carousel
+// Moved from calculations.ts to centralize configuration
+export const WHEEL_RADIUS = 600; // px - larger = flatter curve
+export const ANGLE_PER_SECTION = 55; // degrees between cards
+
 // Resting points for scroll snap (in viewport units)
 // These are the "bottom" points where cards are fully visible
 // Index 0 = About, 1 = Links, 2 = Contact (no Hi! since it's one-time)

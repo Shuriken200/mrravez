@@ -2,50 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { STAGE_TIMINGS } from "../constants";
+import { introStorage } from "../services";
 import type { AnimationStagesState, AnimationStagesOptions } from "../types";
-
-// Cookie/localStorage key for tracking intro played state
-const INTRO_PLAYED_KEY = "intro-played";
-
-// Cookie expiry in days (1 year)
-const COOKIE_EXPIRY_DAYS = 365;
-
-/**
- * Check if intro has been played before (from cookie or localStorage)
- */
-function hasIntroBeenPlayed(): boolean {
-	if (typeof window === "undefined") return false;
-
-	// Check localStorage first (more reliable)
-	const stored = localStorage.getItem(INTRO_PLAYED_KEY);
-	if (stored === "true") return true;
-
-	// Fallback to cookie check
-	const cookies = document.cookie.split(";");
-	for (const cookie of cookies) {
-		const [name, value] = cookie.trim().split("=");
-		if (name === INTRO_PLAYED_KEY && value === "true") {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-/**
- * Mark intro as played (set both cookie and localStorage for redundancy)
- */
-function markIntroAsPlayed(): void {
-	if (typeof window === "undefined") return;
-
-	// Set localStorage
-	localStorage.setItem(INTRO_PLAYED_KEY, "true");
-
-	// Set cookie with 1-year expiry
-	const expiryDate = new Date();
-	expiryDate.setDate(expiryDate.getDate() + COOKIE_EXPIRY_DAYS);
-	document.cookie = `${INTRO_PLAYED_KEY}=true; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
-}
 
 /**
  * Hook to manage the timed animation stage transitions
@@ -58,25 +16,27 @@ function markIntroAsPlayed(): void {
  * Stage 6: Welcome starts fading out
  * Stage 7: Welcome fully gone, about card appears
  * 
+ * Refactored to use IntroStorageService abstraction for persistence
+ * 
  * @param options.skipAnimation - If true, skip directly to stage 7 (ready state)
  */
 export function useAnimationStages(options?: AnimationStagesOptions): AnimationStagesState {
-	// Check if we should skip based on explicit option OR cookie/localStorage
+	// Check if we should skip based on explicit option OR storage
 	const [shouldSkip, setShouldSkip] = useState(() => {
 		// Start with explicit skip option if provided
 		if (options?.skipAnimation) return true;
-		// Check cookie/localStorage on mount (SSR-safe with initial false)
+		// Check storage on mount (SSR-safe with initial false)
 		if (typeof window !== "undefined") {
-			return hasIntroBeenPlayed();
+			return introStorage.hasIntroBeenPlayed();
 		}
 		return false;
 	});
 
 	const [stage, setStage] = useState(shouldSkip ? 7 : 0);
 
-	// Re-check cookie on client mount (handles SSR mismatch)
+	// Re-check storage on client mount (handles SSR mismatch)
 	useEffect(() => {
-		if (!options?.skipAnimation && hasIntroBeenPlayed()) {
+		if (!options?.skipAnimation && introStorage.hasIntroBeenPlayed()) {
 			// Use microtask to avoid synchronous setState warning
 			queueMicrotask(() => {
 				setShouldSkip(true);
@@ -100,7 +60,7 @@ export function useAnimationStages(options?: AnimationStagesOptions): AnimationS
 		const timer7 = setTimeout(() => {
 			setStage(7);
 			// Mark intro as played when animation completes
-			markIntroAsPlayed();
+			introStorage.markIntroAsPlayed();
 		}, STAGE_TIMINGS.stage7);
 
 		return () => {

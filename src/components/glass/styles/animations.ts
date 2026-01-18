@@ -60,9 +60,21 @@ export const paddingDefaults = {
  */
 export const sliderPositionDefaults = {
 	bottomDesktop: 48,
-	bottomMobile: 32,
+	// Mobile: Position above the dot indicator (32px bottom + ~40px for dots + spacing)
+	bottomMobile: 80,
 	zIndex: 9999,
 	mobileBreakpoint: 768,
+} as const;
+
+/**
+ * Dot indicator positioning (for coordination with slider)
+ */
+export const dotIndicatorDefaults = {
+	bottomMobile: 32,
+	dotSize: 10,
+	gap: 12,
+	// Total height: 3 dots + 2 gaps = 10 + 12 + 10 + 12 + 10 = 54 but horizontal so just 10px
+	totalHeight: 10, // Single row on mobile (horizontal)
 } as const;
 
 /**
@@ -70,7 +82,10 @@ export const sliderPositionDefaults = {
  */
 export const cardDefaults = {
 	perspective: '1200px',
-	mobileVerticalShift: 40,
+	// Mobile vertical shift accounts for bottom UI elements (dots + slider)
+	// Dots at 32px, slider at 80px (56px tall) = ~136px from bottom
+	// Shift card up by 60px to create comfortable spacing
+	mobileVerticalShift: 60,
 	contentZOffset: 10,
 } as const;
 

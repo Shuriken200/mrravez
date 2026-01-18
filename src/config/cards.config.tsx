@@ -68,6 +68,13 @@ export const cardsConfig: CardConfig[] = [
 export const CARD_COUNT = cardsConfig.length;
 export const CARD_PATHS = cardsConfig.map(c => c.path);
 
+// Section paths for URL synchronization
+// Used by navigation hooks to update URL as user navigates
+export const SECTION_PATHS = cardsConfig.map(c => c.path) as readonly string[];
+
+// Debug mode section paths (prefixed with /debug)
+export const DEBUG_SECTION_PATHS = cardsConfig.map(c => `/debug${c.path}`) as readonly string[];
+
 /**
  * Get card index by ID
  * @param id - The card ID to look up

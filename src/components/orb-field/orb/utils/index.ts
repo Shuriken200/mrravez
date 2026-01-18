@@ -7,3 +7,4 @@ export {
 	generateWanderParams,
 	getRandomSize,
 } from './OrbSpawnUtils';
+export { OrbFactory, type CreateOrbParams } from './OrbFactory';

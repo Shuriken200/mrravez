@@ -11,7 +11,7 @@ import { SpatialGrid } from '../../grid/core/SpatialGrid';
 import { type ViewportCells } from '../../grid/types';
 import { DEFAULT_ORB_BURST_CONFIG, DEFAULT_CONTINUOUS_SPAWN_CONFIG, type OrbBurstConfig, type ContinuousSpawnConfig } from '../config';
 import { SpawnValidation } from '../../collision';
-import { generateAnimationDurations, generateWanderParams, getRandomSize } from '../utils';
+import { OrbFactory, getRandomSize } from '../utils';
 
 /**
  * Options for the spawning hook.
@@ -123,12 +123,7 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 			const lifetimeMs = minLifetimeMs + Math.random() * (maxLifetimeMs - minLifetimeMs);
 			const spawnDelay = Math.random() * spawnDelayMaxMs;
 
-			const animDurations = generateAnimationDurations();
-			const wanderParams = generateWanderParams();
-
-			const now = performance.now();
-			const newOrb: Orb = {
-				id: crypto.randomUUID(),
+			const newOrb: Orb = OrbFactory.create({
 				pxX: spawnPos.x,
 				pxY: spawnPos.y,
 				z: layer,
@@ -138,12 +133,9 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 				speed,
 				angle,
 				size,
-				createdAt: now - spawnDelay,
 				lifetimeMs,
-				spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-				despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-				...wanderParams,
-			};
+				spawnDelay,
+			});
 
 			OrbGridMarking.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
 			newOrbs.push(newOrb);
@@ -206,11 +198,7 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 
 			const lifetimeMs = minLifetimeMs + Math.random() * (maxLifetimeMs - minLifetimeMs);
 
-			const animDurations = generateAnimationDurations();
-			const wanderParams = generateWanderParams();
-
-			const newOrb: Orb = {
-				id: crypto.randomUUID(),
+			const newOrb: Orb = OrbFactory.create({
 				pxX: spawnPos.x,
 				pxY: spawnPos.y,
 				z: layer,
@@ -220,12 +208,8 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 				speed,
 				angle,
 				size,
-				createdAt: performance.now(),
 				lifetimeMs,
-				spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-				despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-				...wanderParams,
-			};
+			});
 
 			OrbGridMarking.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
 			newOrbs.push(newOrb);

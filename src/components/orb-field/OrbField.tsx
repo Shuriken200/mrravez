@@ -5,11 +5,7 @@
 // =============================================================================
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { GridConfigFactory } from './grid/core/GridConfigFactory';
-import { ViewportCellsFactory } from './grid/core/ViewportCellsFactory';
-import { SpatialGrid } from './grid/core/SpatialGrid';
 import { useOrbManager } from './orb/hooks/useOrbManager';
-import { type GridConfig, type ViewportCells } from './grid/types';
 import {
 	DEFAULT_REVEAL_CONFIG,
 	DEFAULT_STYLE_CONFIG,
@@ -22,7 +18,15 @@ import { OrbVisualRenderer } from './orb/visuals/OrbVisualRenderer';
 import { GridRenderer } from './grid/visuals/GridRenderer';
 import { OrbDebugPanel, GridDebugPanel } from './debug-info';
 import { GlassDebugMenu } from '@/components/debug';
-import { useParallaxOffset, useAnimationLoop, useDebugStateSync, useEventHandlers, usePhysicsLoop } from './hooks';
+import {
+	useParallaxOffset,
+	useAnimationLoop,
+	useDebugStateSync,
+	useEventHandlers,
+	usePhysicsLoop,
+	useGridInitialization,
+	useOrbFieldInteractions,
+} from './hooks';
 import styles from './OrbField.module.css';
 
 /**
@@ -82,26 +86,28 @@ export function OrbField({
 	// =========================================================================
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const visualCanvasRef = useRef<HTMLCanvasElement>(null);
-	const gridRef = useRef<SpatialGrid | null>(null);
-	const viewportCellsRef = useRef<ViewportCells | null>(null);
 	const currentLayerRef = useRef(initialLayer);
-	const hoveredCellRef = useRef<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
 	const burstTimeRef = useRef<number | null>(null);
 	const hasBurstRef = useRef(false);
 
 	// =========================================================================
 	// React State for UI
 	// =========================================================================
-	const [gridConfig, setGridConfig] = useState<GridConfig | null>(null);
-	const [viewportCells, setViewportCells] = useState<ViewportCells | null>(null);
 	const [currentLayer, setCurrentLayer] = useState(initialLayer);
 	const [orbSize, setOrbSize] = useState(1);
-	const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
 
 	// =========================================================================
 	// Custom Hooks
 	// =========================================================================
 	const { windowSize, mousePosRef, isPageVisibleRef, isMounted } = useEventHandlers();
+
+	const {
+		gridConfig,
+		viewportCells,
+		gridRef,
+		viewportCellsRef,
+	} = useGridInitialization({ windowSize, isMobile });
+
 	const {
 		showGridRef,
 		showCollisionAreaRef,
@@ -137,6 +143,29 @@ export function OrbField({
 		syncOrbsState,
 	} = useOrbManager();
 
+	const {
+		hoveredCell,
+		hoveredCellRef,
+		handleMouseMove,
+		handleClick,
+		handleMouseLeave,
+		handleTouchStart,
+		handleTouchMove,
+		handleTouchEnd,
+		handleDeleteOrb,
+	} = useOrbFieldInteractions({
+		gridConfig,
+		viewportCellsRef,
+		gridRef,
+		currentLayerRef,
+		orbSize,
+		isDebugMode,
+		currentScrollOffsetRef,
+		enableSpawnOnClickRef,
+		createOrb,
+		deleteOrb,
+	});
+
 	// =========================================================================
 	// Memoized Configs
 	// =========================================================================
@@ -162,28 +191,6 @@ export function OrbField({
 	useEffect(() => { currentLayerRef.current = currentLayer; }, [currentLayer]);
 
 	// =========================================================================
-	// Grid Initialization
-	// =========================================================================
-	useEffect(() => {
-		if (windowSize.width === 0) return;
-
-		const config = GridConfigFactory.create(window, {
-			targetCellSizeCm: isMobile ? 0.25 : 0.5,
-		});
-		const newGrid = new SpatialGrid(config);
-		newGrid.initializeBorder();
-		const vpc = ViewportCellsFactory.create(config);
-
-		gridRef.current = newGrid;
-		viewportCellsRef.current = vpc;
-
-		queueMicrotask(() => {
-			setGridConfig(config);
-			setViewportCells(vpc);
-		});
-	}, [windowSize, isMobile]);
-
-	// =========================================================================
 	// Physics Loop
 	// =========================================================================
 	const { runPhysics } = usePhysicsLoop({
@@ -200,6 +207,7 @@ export function OrbField({
 		const visualCanvas = visualCanvasRef.current;
 		const grid = gridRef.current;
 		const vpc = viewportCellsRef.current;
+		const hoveredCell = hoveredCellRef.current;
 
 		if (!canvas || !grid || !vpc || windowSize.width === 0) return;
 
@@ -255,7 +263,7 @@ export function OrbField({
 			easedProgress,
 			revealConfig,
 			styleConfig,
-			isDebugMode && enableSpawnOnClickRef.current ? hoveredCellRef.current : null,
+			isDebugMode && enableSpawnOnClickRef.current ? hoveredCell : null,
 			grid,
 			currentLayerRef.current,
 			isDebugMode ? orbsRef.current : [],
@@ -295,7 +303,7 @@ export function OrbField({
 		if (isDebugMode && selectedOrbIdRef.current) {
 			updateSelectedOrbData();
 		}
-	}, [windowSize, orbsRef, selectedOrbIdRef, updateSelectedOrbData, getEffectiveTime, revealConfig, styleConfig, isDebugMode, currentScrollOffsetRef, showGridRef, showCollisionAreaRef, showAvoidanceAreaRef, showGraphicsRef, showArrowVectorRef, showTruePositionRef, isDebugModeRef, runPhysics, mousePosRef, isPageVisibleRef, burstTimeRef, pausePhysicsRef, disableCollisionsRef, disableAvoidanceRef, enableOrbSpawningRef, enableOrbDespawningRef, enableSpawnOnClickRef]);
+	}, [windowSize, orbsRef, selectedOrbIdRef, updateSelectedOrbData, getEffectiveTime, revealConfig, styleConfig, isDebugMode, currentScrollOffsetRef, showGridRef, showCollisionAreaRef, showAvoidanceAreaRef, showGraphicsRef, showArrowVectorRef, showTruePositionRef, isDebugModeRef, runPhysics, mousePosRef, isPageVisibleRef, burstTimeRef, pausePhysicsRef, disableCollisionsRef, disableAvoidanceRef, enableOrbSpawningRef, enableOrbDespawningRef, enableSpawnOnClickRef, gridRef, viewportCellsRef, hoveredCellRef]);
 
 	// Animation Loop
 	useAnimationLoop({
@@ -330,110 +338,7 @@ export function OrbField({
 		};
 
 		checkAndBurst();
-	}, [triggerBurst, spawnOrbBurst, windowSize, currentScrollOffsetRef]);
-
-	// =========================================================================
-	// Interaction Handlers
-	// =========================================================================
-	const handleMouseMove = useCallback((e: React.MouseEvent) => {
-		const vpc = viewportCellsRef.current;
-		const gc = gridConfig;
-		if (!vpc || !gc || !isDebugMode) return;
-
-		const adjustedX = e.clientX - currentScrollOffsetRef.current.x;
-		const adjustedY = e.clientY - currentScrollOffsetRef.current.y;
-		const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
-		const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
-
-		const cellInfo = {
-			x: cellX,
-			y: cellY,
-			worldX: gc.minXCm + cellX * vpc.cellSizeXCm,
-			worldY: gc.minYCm + cellY * vpc.cellSizeYCm,
-		};
-
-		hoveredCellRef.current = cellInfo;
-		setHoveredCell(cellInfo);
-	}, [gridConfig, isDebugMode, currentScrollOffsetRef]);
-
-	const handleClick = useCallback((e: React.MouseEvent) => {
-		const vpc = viewportCellsRef.current;
-		const grid = gridRef.current;
-		if (!grid || !vpc || !isDebugMode || !enableSpawnOnClickRef.current) return;
-
-		const adjustedX = e.clientX - currentScrollOffsetRef.current.x;
-		const adjustedY = e.clientY - currentScrollOffsetRef.current.y;
-		createOrb(adjustedX, adjustedY, currentLayerRef.current, orbSize, grid, vpc);
-	}, [orbSize, createOrb, isDebugMode, currentScrollOffsetRef, enableSpawnOnClickRef]);
-
-	const handleDeleteOrb = useCallback((id: string) => {
-		const grid = gridRef.current;
-		const vpc = viewportCellsRef.current;
-		if (!grid || !vpc) return;
-		deleteOrb(id, grid, vpc);
-	}, [deleteOrb]);
-
-	const handleMouseLeave = useCallback(() => {
-		hoveredCellRef.current = null;
-		setHoveredCell(null);
-	}, []);
-
-	// Touch handlers
-	const handleTouchStart = useCallback((e: React.TouchEvent) => {
-		const vpc = viewportCellsRef.current;
-		const grid = gridRef.current;
-		if (!grid || !vpc || !isDebugMode) return;
-
-		if (e.touches.length > 0) {
-			const touch = e.touches[0];
-			const adjustedX = touch.clientX - currentScrollOffsetRef.current.x;
-			const adjustedY = touch.clientY - currentScrollOffsetRef.current.y;
-
-			if (gridConfig) {
-				const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
-				const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
-				const cellInfo = {
-					x: cellX,
-					y: cellY,
-					worldX: gridConfig.minXCm + cellX * vpc.cellSizeXCm,
-					worldY: gridConfig.minYCm + cellY * vpc.cellSizeYCm,
-				};
-				hoveredCellRef.current = cellInfo;
-				setHoveredCell(cellInfo);
-			}
-
-			if (enableSpawnOnClickRef.current) {
-				createOrb(adjustedX, adjustedY, currentLayerRef.current, orbSize, grid, vpc);
-			}
-		}
-	}, [orbSize, createOrb, isDebugMode, gridConfig, currentScrollOffsetRef, enableSpawnOnClickRef]);
-
-	const handleTouchMove = useCallback((e: React.TouchEvent) => {
-		const vpc = viewportCellsRef.current;
-		const gc = gridConfig;
-		if (!vpc || !gc || !isDebugMode) return;
-
-		if (e.touches.length > 0) {
-			const touch = e.touches[0];
-			const adjustedX = touch.clientX - currentScrollOffsetRef.current.x;
-			const adjustedY = touch.clientY - currentScrollOffsetRef.current.y;
-			const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
-			const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
-			const cellInfo = {
-				x: cellX,
-				y: cellY,
-				worldX: gc.minXCm + cellX * vpc.cellSizeXCm,
-				worldY: gc.minYCm + cellY * vpc.cellSizeYCm,
-			};
-			hoveredCellRef.current = cellInfo;
-			setHoveredCell(cellInfo);
-		}
-	}, [gridConfig, isDebugMode, currentScrollOffsetRef]);
-
-	const handleTouchEnd = useCallback(() => {
-		hoveredCellRef.current = null;
-		setHoveredCell(null);
-	}, []);
+	}, [triggerBurst, spawnOrbBurst, windowSize, currentScrollOffsetRef, gridRef, viewportCellsRef]);
 
 	// =========================================================================
 	// Render

@@ -1,59 +1,61 @@
 "use client";
 
 // =============================================================================
-// useDebugStateSync - Hook for synchronizing debug state with refs
+// useDebugStateSync - Orchestrates debug state management
 // =============================================================================
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDebugSafe } from '@/components/debug';
-
-/**
- * Debug option refs for high-performance loop access.
- */
-export interface DebugOptionRefs {
-	showGridRef: React.MutableRefObject<boolean>;
-	showCollisionAreaRef: React.MutableRefObject<boolean>;
-	showAvoidanceAreaRef: React.MutableRefObject<boolean>;
-	showGraphicsRef: React.MutableRefObject<boolean>;
-	enableOrbSpawningRef: React.MutableRefObject<boolean>;
-	enableOrbDespawningRef: React.MutableRefObject<boolean>;
-	enableSpawnOnClickRef: React.MutableRefObject<boolean>;
-	pausePhysicsRef: React.MutableRefObject<boolean>;
-	disableCollisionsRef: React.MutableRefObject<boolean>;
-	disableAvoidanceRef: React.MutableRefObject<boolean>;
-	showArrowVectorRef: React.MutableRefObject<boolean>;
-	showTruePositionRef: React.MutableRefObject<boolean>;
-	isDebugModeRef: React.MutableRefObject<boolean>;
-	pausedAtTimeRef: React.MutableRefObject<number | null>;
-	pausedTimeOffsetRef: React.MutableRefObject<number>;
-}
+import { usePauseTimeTracking, getEffectiveTime, type PauseTimeRefs } from './usePauseTimeTracking';
+import { useDebugModeInit } from './useDebugModeInit';
 
 /**
  * Return values from the debug state sync hook.
+ * 
+ * Provides access to debug state and refs for high-performance rendering loops.
  */
-interface UseDebugStateSyncReturn extends DebugOptionRefs {
+export interface UseDebugStateSyncReturn extends PauseTimeRefs {
 	/** Whether debug mode is currently enabled. */
 	isDebugMode: boolean;
 	/** Function to get effective time (frozen when paused). */
 	getEffectiveTime: () => number;
+	/** Ref for show grid setting. */
+	showGridRef: React.RefObject<boolean>;
+	/** Ref for show collision area setting. */
+	showCollisionAreaRef: React.RefObject<boolean>;
+	/** Ref for show avoidance area setting. */
+	showAvoidanceAreaRef: React.RefObject<boolean>;
+	/** Ref for show graphics setting. */
+	showGraphicsRef: React.RefObject<boolean>;
+	/** Ref for enable orb spawning setting. */
+	enableOrbSpawningRef: React.RefObject<boolean>;
+	/** Ref for enable orb despawning setting. */
+	enableOrbDespawningRef: React.RefObject<boolean>;
+	/** Ref for enable spawn on click setting. */
+	enableSpawnOnClickRef: React.RefObject<boolean>;
+	/** Ref for pause physics setting. */
+	pausePhysicsRef: React.RefObject<boolean>;
+	/** Ref for disable collisions setting. */
+	disableCollisionsRef: React.RefObject<boolean>;
+	/** Ref for disable avoidance setting. */
+	disableAvoidanceRef: React.RefObject<boolean>;
+	/** Ref for show arrow vector setting. */
+	showArrowVectorRef: React.RefObject<boolean>;
+	/** Ref for show true position setting. */
+	showTruePositionRef: React.RefObject<boolean>;
+	/** Ref for debug mode state. */
+	isDebugModeRef: React.RefObject<boolean>;
 }
 
 /**
- * Synchronizes debug context state with refs for high-performance loop access.
+ * Orchestrates debug state management by composing focused sub-hooks.
  * 
- * Handles:
- * - Debug option ref synchronization
- * - Debug event listeners (for when context is not available)
- * - Pause time tracking for freezing animations
- * - Debug mode state management
- * 
- * @returns Debug option refs and state.
+ * Single Responsibility: Debug state orchestration only.
  */
 export function useDebugStateSync(): UseDebugStateSyncReturn {
 	const debugContext = useDebugSafe();
-	const [isDebugMode, setIsDebugMode] = useState(false);
 
-	// Debug option refs for animation loop access
+	// Create debug refs (using local refs to allow mutation)
 	const showGridRef = useRef(true);
 	const showCollisionAreaRef = useRef(true);
 	const showAvoidanceAreaRef = useRef(true);
@@ -67,8 +69,12 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 	const showArrowVectorRef = useRef(true);
 	const showTruePositionRef = useRef(true);
 	const isDebugModeRef = useRef(false);
-	const pausedAtTimeRef = useRef<number | null>(null);
-	const pausedTimeOffsetRef = useRef(0);
+
+	// Pause time tracking
+	const pauseTracking = usePauseTimeTracking();
+
+	// Debug mode initialization
+	const { isDebugMode } = useDebugModeInit(isDebugModeRef);
 
 	// Sync debug options to refs from context
 	useEffect(() => {
@@ -90,17 +96,9 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 			const isPaused = debugContext.state.pausePhysics;
 			pausePhysicsRef.current = isPaused;
 
-			// Track pause/resume for time freezing
-			if (!wasPaused && isPaused) {
-				pausedAtTimeRef.current = performance.now();
-			} else if (wasPaused && !isPaused) {
-				if (pausedAtTimeRef.current !== null) {
-					pausedTimeOffsetRef.current += performance.now() - pausedAtTimeRef.current;
-					pausedAtTimeRef.current = null;
-				}
-			}
+			pauseTracking.handlePauseChange(wasPaused, isPaused);
 		}
-	}, [debugContext?.state]);
+	}, [debugContext?.state, pauseTracking]);
 
 	// Listen for debug option changes when context is not available (from GlassDebugMenu)
 	useEffect(() => {
@@ -144,15 +142,7 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 					const wasPaused = pausePhysicsRef.current;
 					const isPaused = value;
 					pausePhysicsRef.current = isPaused;
-
-					if (!wasPaused && isPaused) {
-						pausedAtTimeRef.current = performance.now();
-					} else if (wasPaused && !isPaused) {
-						if (pausedAtTimeRef.current !== null) {
-							pausedTimeOffsetRef.current += performance.now() - pausedAtTimeRef.current;
-							pausedAtTimeRef.current = null;
-						}
-					}
+					pauseTracking.handlePauseChange(wasPaused, isPaused);
 					break;
 			}
 		};
@@ -161,56 +151,12 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 		return () => {
 			window.removeEventListener("debugOptionChanged", handleDebugOptionChange as EventListener);
 		};
-	}, []);
-
-	// Initialize debug mode on mount
-	useEffect(() => {
-		const getDebugMode = (): boolean => {
-			if (typeof window === 'undefined') {
-				return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-			}
-			const stored = localStorage.getItem('debug-mode-enabled');
-			if (stored !== null) {
-				return stored === 'true';
-			}
-			return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-		};
-
-		const debugMode = getDebugMode();
-		isDebugModeRef.current = debugMode;
-		queueMicrotask(() => {
-			setIsDebugMode(debugMode);
-		});
-
-		const handleDebugModeChange = (e: CustomEvent) => {
-			const enabled = e.detail.enabled;
-			isDebugModeRef.current = enabled;
-			queueMicrotask(() => {
-				setIsDebugMode(enabled);
-			});
-		};
-
-		window.addEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-
-		return () => {
-			window.removeEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-		};
-	}, []);
-
-	/**
-	 * Get the effective time for animations.
-	 * When paused, returns the frozen time (time at pause).
-	 * When not paused, returns current time minus accumulated pause duration.
-	 */
-	const getEffectiveTime = (): number => {
-		const now = performance.now();
-		if (pausePhysicsRef.current && pausedAtTimeRef.current !== null) {
-			return pausedAtTimeRef.current - pausedTimeOffsetRef.current;
-		}
-		return now - pausedTimeOffsetRef.current;
-	};
+	}, [pauseTracking]);
 
 	return {
+		...pauseTracking,
+		isDebugMode,
+		getEffectiveTime: () => getEffectiveTime(pausePhysicsRef, pauseTracking.pausedAtTimeRef, pauseTracking.pausedTimeOffsetRef),
 		showGridRef,
 		showCollisionAreaRef,
 		showAvoidanceAreaRef,
@@ -224,9 +170,5 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 		showArrowVectorRef,
 		showTruePositionRef,
 		isDebugModeRef,
-		pausedAtTimeRef,
-		pausedTimeOffsetRef,
-		isDebugMode,
-		getEffectiveTime,
 	};
 }

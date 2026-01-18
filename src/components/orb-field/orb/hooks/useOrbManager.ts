@@ -88,7 +88,7 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 			selection.selectOrb(id, orbsRef);
 		};
 		const setSelectedOrbDataWrapper = (_data: Orb | null) => {
-			// This is handled internally by selectOrb
+			// Data is already set by selectOrb
 		};
 		crud.deleteOrb(id, grid, vpc, orbsRef, setOrbs, setSelectedOrbIdWrapper, setSelectedOrbDataWrapper, selection.selectedOrbIdRef);
 	};

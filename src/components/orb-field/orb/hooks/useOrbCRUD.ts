@@ -11,7 +11,7 @@ import { SpatialGrid } from '../../grid/core/SpatialGrid';
 import { type ViewportCells } from '../../grid/types';
 import { DEFAULT_ORB_SPAWN_CONFIG, type OrbSpawnConfig } from '../config';
 import { SpawnValidation } from '../../collision';
-import { generateAnimationDurations, generateWanderParams } from '../utils';
+import { OrbFactory } from '../utils';
 
 /**
  * Options for the CRUD hook.
@@ -72,11 +72,7 @@ export function useOrbCRUD(options: UseOrbCRUDOptions = {}): UseOrbCRUDReturn {
 		const cosPhi = Math.cos(phi);
 		const sinPhi = Math.sin(phi);
 
-		const animDurations = generateAnimationDurations();
-		const wanderParams = generateWanderParams();
-
-		const newOrb: Orb = {
-			id: crypto.randomUUID(),
+		const newOrb: Orb = OrbFactory.create({
 			pxX,
 			pxY,
 			z,
@@ -86,12 +82,8 @@ export function useOrbCRUD(options: UseOrbCRUDOptions = {}): UseOrbCRUDReturn {
 			speed,
 			angle: theta,
 			size,
-			createdAt: performance.now(),
 			lifetimeMs: Infinity,
-			spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-			despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-			...wanderParams,
-		};
+		});
 
 		orbsRef.current.push(newOrb);
 		setOrbs([...orbsRef.current]);

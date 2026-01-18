@@ -81,7 +81,7 @@ export function useAnimationLoop({
 
 	useEffect(() => {
 		console.log('[useAnimationLoop] MAIN EFFECT - visible:', visible, 'hasGridConfig:', hasGridConfig, 'hasStarted:', hasStartedRef.current);
-		
+
 		// Don't restart if we've already started the animation
 		if (hasStartedRef.current) return;
 		if (!visible || !hasGridConfig) return;

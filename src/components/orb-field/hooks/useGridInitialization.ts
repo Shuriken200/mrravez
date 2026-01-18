@@ -56,6 +56,9 @@ export function useGridInitialization(params: UseGridInitializationParams): UseG
 		});
 		const newGrid = new SpatialGrid(config);
 		newGrid.initializeBorder();
+		// Save clean state for fast clearDynamic() - enables O(1) bulk memory copy
+		// instead of O(n) per-cell iteration through millions of cells
+		newGrid.saveCleanState();
 		const vpc = ViewportCellsFactory.create(config);
 
 		gridRef.current = newGrid;

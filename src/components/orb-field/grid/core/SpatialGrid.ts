@@ -20,6 +20,12 @@ export class SpatialGrid {
 	/** Flat array storing cell states for all layers. */
 	private cells: Uint8Array;
 
+	/** 
+	 * Pre-computed clean state with only border cells.
+	 * Used for fast clearDynamic() via bulk memory copy instead of per-cell iteration.
+	 */
+	private cleanState: Uint8Array | null = null;
+
 	/**
 	 * Creates a new SpatialGrid instance.
 	 *
@@ -29,6 +35,17 @@ export class SpatialGrid {
 		this.config = config;
 		const totalCells = config.cellsX * config.cellsY * config.layers;
 		this.cells = new Uint8Array(totalCells);
+	}
+
+	/**
+	 * Saves the current cell state as the "clean" state for fast clearing.
+	 * Call this after initializeBorder() to capture the border-only state.
+	 * 
+	 * This enables clearDynamic() to use a fast bulk memory copy instead of
+	 * iterating through millions of cells with conditional checks.
+	 */
+	saveCleanState(): void {
+		this.cleanState = new Uint8Array(this.cells);
 	}
 
 	/**
@@ -161,15 +178,23 @@ export class SpatialGrid {
 	/**
 	 * Clears only dynamic cells (CELL_FILLED, CELL_PROXIMITY).
 	 * Preserves CELL_BORDER flag on cells to maintain permanent walls.
+	 * 
+	 * Performance: Uses bulk memory copy when cleanState is available,
+	 * reducing from O(n) conditional checks to a single fast memcpy operation.
+	 * This is critical for grids with millions of cells (e.g., 300x170x100 = 5M cells).
 	 */
 	clearDynamic(): void {
-		for (let i = 0; i < this.cells.length; i++) {
-			// Check if cell has BORDER flag using bit mask
-			if ((this.cells[i] & CELL_BORDER) !== 0) {
-				// Keep only the BORDER flag, clear everything else
-				this.cells[i] = CELL_BORDER;
-			} else {
-				this.cells[i] = CELL_EMPTY;
+		if (this.cleanState) {
+			// Fast path: bulk memory copy (single operation instead of 5M+ iterations)
+			this.cells.set(this.cleanState);
+		} else {
+			// Fallback: iterate through all cells (slow for large grids)
+			for (let i = 0; i < this.cells.length; i++) {
+				if ((this.cells[i] & CELL_BORDER) !== 0) {
+					this.cells[i] = CELL_BORDER;
+				} else {
+					this.cells[i] = CELL_EMPTY;
+				}
 			}
 		}
 	}

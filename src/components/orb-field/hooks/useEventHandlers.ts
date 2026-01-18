@@ -14,9 +14,9 @@ interface UseEventHandlersReturn {
 	/** Current window dimensions. */
 	windowSize: WindowSize;
 	/** Ref to current mouse position (null when not hovering). */
-	mousePosRef: React.MutableRefObject<{ x: number; y: number } | null>;
+	mousePosRef: React.RefObject<{ x: number; y: number } | null>;
 	/** Ref to whether the page/tab is currently visible and focused. */
-	isPageVisibleRef: React.MutableRefObject<boolean>;
+	isPageVisibleRef: React.RefObject<boolean>;
 	/** Whether the component has mounted. */
 	isMounted: boolean;
 }
@@ -48,7 +48,14 @@ export function useEventHandlers(): UseEventHandlersReturn {
 		const handleResize = () => {
 			const width = window.innerWidth;
 			const height = window.innerHeight;
-			setWindowSize({ width, height });
+			// Only update if values actually changed to prevent unnecessary re-renders
+			setWindowSize(prev => {
+				if (prev.width === width && prev.height === height) {
+					return prev; // Return same object reference
+				}
+				console.log('[useEventHandlers] windowSize changed:', width, height);
+				return { width, height };
+			});
 		};
 
 		// Global mouse tracking for orb repulsion (works even when canvas has pointerEvents: none)

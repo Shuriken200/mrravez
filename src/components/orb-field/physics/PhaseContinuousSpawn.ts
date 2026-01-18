@@ -26,9 +26,10 @@ export class PhaseContinuousSpawn {
 	 * @param isPageVisible - Whether page is visible and focused.
 	 * @param enableOrbSpawning - Whether continuous spawning is enabled.
 	 * @param spawnRandomOrbs - Function to spawn random orbs.
+	 * @param deltaTime - Time since last frame in seconds.
 	 */
 	static execute(
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
 		windowSize: WindowSize,
@@ -36,10 +37,11 @@ export class PhaseContinuousSpawn {
 		burstTime: number | null,
 		isPageVisible: boolean,
 		enableOrbSpawning: boolean,
-		spawnRandomOrbs: (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells) => number
+		spawnRandomOrbs: (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells) => number,
+		deltaTime: number
 	): void {
 		const { delayAfterBurstMs, targetOrbCountAt4K, referenceScreenArea, minOrbCount, baseSpawnRateAt4K, maxSpawnsPerFrame } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
-		
+
 		if (!burstTime || (currentTime - burstTime) <= delayAfterBurstMs || !isPageVisible || !enableOrbSpawning) {
 			return;
 		}
@@ -56,11 +58,9 @@ export class PhaseContinuousSpawn {
 		if (deficit > 0) {
 			const deficitRatio = Math.min(1, deficit / targetCount);
 			const spawnRate = baseSpawnRate * deficitRatio;
-			
-			// Calculate spawns based on time delta
-			// Note: deltaTime would need to be passed in, but we can approximate with frame rate
-			const assumedDeltaTime = 1 / 60; // Assume 60 FPS
-			const expectedSpawns = spawnRate * assumedDeltaTime;
+
+			// Calculate spawns based on actual time delta
+			const expectedSpawns = spawnRate * deltaTime;
 			const guaranteedSpawns = Math.floor(expectedSpawns);
 			const fractionalChance = expectedSpawns - guaranteedSpawns;
 			const extraSpawn = Math.random() < fractionalChance ? 1 : 0;

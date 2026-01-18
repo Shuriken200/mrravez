@@ -89,6 +89,7 @@ export function OrbField({
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const visualCanvasRef = useRef<HTMLCanvasElement>(null);
 	const currentLayerRef = useRef(initialLayer);
+	const windowSizeRef = useRef({ width: 0, height: 0 });
 
 	// =========================================================================
 	// State
@@ -102,7 +103,7 @@ export function OrbField({
 	const { windowSize, mousePosRef, isPageVisibleRef, isMounted } = useEventHandlers();
 	const { gridConfig, viewportCells, gridRef, viewportCellsRef } = useGridInitialization({ windowSize, isMobile });
 	const debugState = useDebugStateSync();
-	const currentScrollOffsetRef = useParallaxOffset(scrollProgress, isMobile, deviceTiltX, deviceTiltY);
+	const { currentScrollOffsetRef, updateParallaxOffset } = useParallaxOffset(scrollProgress, isMobile, deviceTiltX, deviceTiltY);
 
 	const orbManager = useOrbManager();
 	const {
@@ -159,6 +160,15 @@ export function OrbField({
 		[styleOverrides]
 	);
 
+	// Refs for configs - read inside render loop for stable callback
+	const revealConfigRef = useRef(revealConfig);
+	const styleConfigRef = useRef(styleConfig);
+	useEffect(() => { revealConfigRef.current = revealConfig; }, [revealConfig]);
+	useEffect(() => { styleConfigRef.current = styleConfig; }, [styleConfig]);
+
+	// Sync windowSize to ref for stable render loop access
+	useEffect(() => { windowSizeRef.current = windowSize; }, [windowSize]);
+
 	const targetOrbCount = useMemo(() => {
 		const { targetOrbCountAt4K, referenceScreenArea, minOrbCount } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
 		const screenArea = windowSize.width * windowSize.height;
@@ -173,6 +183,39 @@ export function OrbField({
 	// Render Loop
 	// =========================================================================
 	const { runLoop } = useRenderLoop(
+		// Refs - all values accessed via refs for stable callback
+		{
+			canvasRef,
+			visualCanvasRef,
+			gridRef,
+			viewportCellsRef,
+			hoveredCellRef,
+			windowSizeRef,
+			orbsRef: orbManager.orbsRef,
+			selectedOrbIdRef: orbManager.selectedOrbIdRef,
+			currentLayerRef,
+			currentScrollOffsetRef,
+			mousePosRef,
+			isPageVisibleRef,
+			burstTimeRef,
+			showGridRef: debugState.showGridRef,
+			showCollisionAreaRef: debugState.showCollisionAreaRef,
+			showAvoidanceAreaRef: debugState.showAvoidanceAreaRef,
+			showGraphicsRef: debugState.showGraphicsRef,
+			showArrowVectorRef: debugState.showArrowVectorRef,
+			showTruePositionRef: debugState.showTruePositionRef,
+			pausePhysicsRef: debugState.pausePhysicsRef,
+			disableCollisionsRef: debugState.disableCollisionsRef,
+			disableAvoidanceRef: debugState.disableAvoidanceRef,
+			enableOrbSpawningRef: debugState.enableOrbSpawningRef,
+			enableOrbDespawningRef: debugState.enableOrbDespawningRef,
+			enableSpawnOnClickRef: debugState.enableSpawnOnClickRef,
+			isDebugModeRef: debugState.isDebugModeRef,
+			opacityRef,
+			revealConfigRef,
+			styleConfigRef,
+		},
+		// Callbacks - must be stable (wrapped in useCallback)
 		{
 			runPhysics,
 			syncCanvasDimensions,
@@ -180,37 +223,8 @@ export function OrbField({
 			updateOpacity,
 			getEffectiveTime: debugState.getEffectiveTime,
 			updateSelectedOrbData: orbManager.updateSelectedOrbData,
-			revealConfig,
-			styleConfig,
-		},
-		canvasRef,
-		visualCanvasRef,
-		gridRef,
-		viewportCellsRef,
-		hoveredCellRef,
-		windowSize,
-		orbManager.orbsRef,
-		orbManager.selectedOrbIdRef,
-		currentLayerRef,
-		currentScrollOffsetRef,
-		mousePosRef,
-		isPageVisibleRef,
-		burstTimeRef,
-		debugState.showGridRef,
-		debugState.showCollisionAreaRef,
-		debugState.showAvoidanceAreaRef,
-		debugState.showGraphicsRef,
-		debugState.showArrowVectorRef,
-		debugState.showTruePositionRef,
-		debugState.pausePhysicsRef,
-		debugState.disableCollisionsRef,
-		debugState.disableAvoidanceRef,
-		debugState.enableOrbSpawningRef,
-		debugState.enableOrbDespawningRef,
-		debugState.enableSpawnOnClickRef,
-		debugState.isDebugModeRef,
-		debugState.isDebugMode,
-		opacityRef
+			updateParallaxOffset,
+		}
 	);
 
 	useAnimationLoop({

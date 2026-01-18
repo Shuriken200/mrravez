@@ -15,9 +15,44 @@ import { type ViewportCells } from '../grid/types';
 import { type Orb } from '../orb/types';
 
 /**
- * Parameters for render loop hook.
+ * Refs for render loop - all values accessed via refs for stable callback.
  */
-interface UseRenderLoopParams {
+interface UseRenderLoopRefs {
+	canvasRef: React.RefObject<HTMLCanvasElement | null>;
+	visualCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+	gridRef: React.RefObject<SpatialGrid | null>;
+	viewportCellsRef: React.RefObject<ViewportCells | null>;
+	hoveredCellRef: React.RefObject<{ x: number; y: number; worldX: number; worldY: number } | null>;
+	windowSizeRef: React.RefObject<WindowSize>;
+	orbsRef: React.RefObject<Orb[]>;
+	selectedOrbIdRef: React.RefObject<string | null>;
+	currentLayerRef: React.RefObject<number>;
+	currentScrollOffsetRef: React.RefObject<{ x: number; y: number }>;
+	mousePosRef: React.RefObject<{ x: number; y: number } | null>;
+	isPageVisibleRef: React.RefObject<boolean>;
+	burstTimeRef: React.RefObject<number | null>;
+	showGridRef: React.RefObject<boolean>;
+	showCollisionAreaRef: React.RefObject<boolean>;
+	showAvoidanceAreaRef: React.RefObject<boolean>;
+	showGraphicsRef: React.RefObject<boolean>;
+	showArrowVectorRef: React.RefObject<boolean>;
+	showTruePositionRef: React.RefObject<boolean>;
+	pausePhysicsRef: React.RefObject<boolean>;
+	disableCollisionsRef: React.RefObject<boolean>;
+	disableAvoidanceRef: React.RefObject<boolean>;
+	enableOrbSpawningRef: React.RefObject<boolean>;
+	enableOrbDespawningRef: React.RefObject<boolean>;
+	enableSpawnOnClickRef: React.RefObject<boolean>;
+	isDebugModeRef: React.RefObject<boolean>;
+	opacityRef: React.RefObject<number>;
+	revealConfigRef: React.RefObject<GridRevealConfig>;
+	styleConfigRef: React.RefObject<GridStyleConfig>;
+}
+
+/**
+ * Callbacks for render loop - must be stable (wrapped in useCallback).
+ */
+interface UseRenderLoopCallbacks {
 	/** Function to run physics simulation. */
 	runPhysics: (context: PhysicsContext) => void;
 	/** Function to sync canvas dimensions. */
@@ -30,10 +65,8 @@ interface UseRenderLoopParams {
 	getEffectiveTime: () => number;
 	/** Function to update selected orb data. */
 	updateSelectedOrbData: () => void;
-	/** Grid reveal configuration. */
-	revealConfig: GridRevealConfig;
-	/** Grid style configuration. */
-	styleConfig: GridStyleConfig;
+	/** Function to update parallax offset. */
+	updateParallaxOffset: () => void;
 }
 
 /**
@@ -47,39 +80,47 @@ export interface UseRenderLoopReturn {
 /**
  * Orchestrates all rendering operations per frame.
  * 
+ * Uses refs for all values to minimize dependency array and prevent
+ * callback recreation. Only stable callbacks are in dependencies.
+ * 
  * Single Responsibility: Rendering orchestration only.
  */
 export function useRenderLoop(
-	params: UseRenderLoopParams,
-	canvasRef: React.RefObject<HTMLCanvasElement | null>,
-	visualCanvasRef: React.RefObject<HTMLCanvasElement | null>,
-	gridRef: React.RefObject<SpatialGrid | null>,
-	viewportCellsRef: React.RefObject<ViewportCells | null>,
-	hoveredCellRef: React.RefObject<{ x: number; y: number; worldX: number; worldY: number } | null>,
-	windowSize: WindowSize,
-	orbsRef: React.RefObject<Orb[]>,
-	selectedOrbIdRef: React.RefObject<string | null>,
-	currentLayerRef: React.RefObject<number>,
-	currentScrollOffsetRef: React.RefObject<{ x: number; y: number }>,
-	mousePosRef: React.RefObject<{ x: number; y: number } | null>,
-	isPageVisibleRef: React.RefObject<boolean>,
-	burstTimeRef: React.RefObject<number | null>,
-	showGridRef: React.RefObject<boolean>,
-	showCollisionAreaRef: React.RefObject<boolean>,
-	showAvoidanceAreaRef: React.RefObject<boolean>,
-	showGraphicsRef: React.RefObject<boolean>,
-	showArrowVectorRef: React.RefObject<boolean>,
-	showTruePositionRef: React.RefObject<boolean>,
-	pausePhysicsRef: React.RefObject<boolean>,
-	disableCollisionsRef: React.RefObject<boolean>,
-	disableAvoidanceRef: React.RefObject<boolean>,
-	enableOrbSpawningRef: React.RefObject<boolean>,
-	enableOrbDespawningRef: React.RefObject<boolean>,
-	enableSpawnOnClickRef: React.RefObject<boolean>,
-	isDebugModeRef: React.RefObject<boolean>,
-	isDebugMode: boolean,
-	opacityRef: React.RefObject<number>
+	refs: UseRenderLoopRefs,
+	callbacks: UseRenderLoopCallbacks
 ): UseRenderLoopReturn {
+	const {
+		canvasRef,
+		visualCanvasRef,
+		gridRef,
+		viewportCellsRef,
+		hoveredCellRef,
+		windowSizeRef,
+		orbsRef,
+		selectedOrbIdRef,
+		currentLayerRef,
+		currentScrollOffsetRef,
+		mousePosRef,
+		isPageVisibleRef,
+		burstTimeRef,
+		showGridRef,
+		showCollisionAreaRef,
+		showAvoidanceAreaRef,
+		showGraphicsRef,
+		showArrowVectorRef,
+		showTruePositionRef,
+		pausePhysicsRef,
+		disableCollisionsRef,
+		disableAvoidanceRef,
+		enableOrbSpawningRef,
+		enableOrbDespawningRef,
+		enableSpawnOnClickRef,
+		isDebugModeRef,
+		opacityRef,
+		revealConfigRef,
+		styleConfigRef,
+	} = refs;
+
 	const {
 		runPhysics,
 		syncCanvasDimensions,
@@ -87,9 +128,8 @@ export function useRenderLoop(
 		updateOpacity,
 		getEffectiveTime,
 		updateSelectedOrbData,
-		revealConfig,
-		styleConfig,
-	} = params;
+		updateParallaxOffset,
+	} = callbacks;
 
 	const runLoop = useCallback((easedProgress: number, deltaTime: number) => {
 		const canvas = canvasRef.current;
@@ -97,11 +137,15 @@ export function useRenderLoop(
 		const grid = gridRef.current;
 		const vpc = viewportCellsRef.current;
 		const hoveredCell = hoveredCellRef.current;
+		const windowSize = windowSizeRef.current;
 
 		if (!canvas || !grid || !vpc || windowSize.width === 0) return;
 
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
+
+		// Update parallax offset (was separate RAF loop, now inline)
+		updateParallaxOffset();
 
 		// Run physics simulation
 		runPhysics({
@@ -133,13 +177,14 @@ export function useRenderLoop(
 		updateOpacity(canvas, opacity);
 
 		// Render debug grid
+		const isDebugMode = isDebugModeRef.current;
 		GridRenderer.draw(
 			ctx,
 			windowSize,
 			vpc,
 			easedProgress,
-			revealConfig,
-			styleConfig,
+			revealConfigRef.current,
+			styleConfigRef.current,
 			isDebugMode && enableSpawnOnClickRef.current ? hoveredCell : null,
 			grid,
 			currentLayerRef.current,
@@ -181,20 +226,22 @@ export function useRenderLoop(
 			updateSelectedOrbData();
 		}
 	}, [
+		// Only stable callbacks in dependencies - refs are read inside callback
 		runPhysics,
 		syncCanvasDimensions,
 		calculateOpacity,
 		updateOpacity,
 		getEffectiveTime,
 		updateSelectedOrbData,
-		revealConfig,
-		styleConfig,
+		updateParallaxOffset,
+		// Refs are stable and don't need to be in dependencies, but including them
+		// doesn't hurt and satisfies exhaustive-deps lint rule
 		canvasRef,
 		visualCanvasRef,
 		gridRef,
 		viewportCellsRef,
 		hoveredCellRef,
-		windowSize,
+		windowSizeRef,
 		orbsRef,
 		selectedOrbIdRef,
 		currentLayerRef,
@@ -215,9 +262,13 @@ export function useRenderLoop(
 		enableOrbDespawningRef,
 		enableSpawnOnClickRef,
 		isDebugModeRef,
-		isDebugMode,
 		opacityRef,
+		revealConfigRef,
+		styleConfigRef,
 	]);
+
+	// Log when runLoop is recreated
+	console.log('[useRenderLoop] runLoop created');
 
 	return {
 		runLoop,

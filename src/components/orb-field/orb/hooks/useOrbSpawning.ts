@@ -28,9 +28,9 @@ interface UseOrbSpawningOptions {
  */
 export interface UseOrbSpawningReturn {
 	/** Spawns a burst of orbs from a center point. */
-	spawnOrbBurst: (centerX: number, centerY: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.MutableRefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => void;
+	spawnOrbBurst: (centerX: number, centerY: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.RefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => void;
 	/** Spawns random orbs at random positions across the viewport. */
-	spawnRandomOrbs: (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.MutableRefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => number;
+	spawnRandomOrbs: (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.RefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => number;
 }
 
 /**
@@ -65,7 +65,7 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 		centerY: number,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		setOrbs: (orbs: Orb[]) => void
 	) => {
 		const { targetCount, maxSize, spawnRadiusPx, maxRetries, minSpeed, maxSpeed, minLifetimeMs, maxLifetimeMs, spawnDelayMaxMs, positionJitterPx } = burstConfig;
@@ -156,7 +156,7 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 		screenHeight: number,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		setOrbs: (orbs: Orb[]) => void
 	): number => {
 		const { maxSize, maxRetries, minSpeed, maxSpeed, minLifetimeMs, maxLifetimeMs } = burstConfig;
@@ -223,8 +223,8 @@ export function useOrbSpawning(options: UseOrbSpawningOptions = {}): UseOrbSpawn
 		return newOrbs.length;
 	}, [burstConfig, continuousConfig]);
 
-	return {
+	return useMemo(() => ({
 		spawnOrbBurst,
 		spawnRandomOrbs,
-	};
+	}), [spawnOrbBurst, spawnRandomOrbs]);
 }

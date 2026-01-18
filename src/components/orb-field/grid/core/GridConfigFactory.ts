@@ -51,8 +51,8 @@ export class GridConfigFactory {
 		let cellsY = cellsYPerViewport * (1 + 2 * multiplier);
 
 		// Cap grid size to prevent excessive memory usage on large screens
-		const maxCellsX = 315;
-		const maxCellsY = 175;
+		const maxCellsX = 1000;
+		const maxCellsY = 1000;
 		cellsX = Math.min(cellsX, maxCellsX);
 		cellsY = Math.min(cellsY, maxCellsY);
 

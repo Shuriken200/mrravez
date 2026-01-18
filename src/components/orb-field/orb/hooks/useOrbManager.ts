@@ -4,7 +4,7 @@
 // useOrbManager - Orchestrates orb management sub-hooks
 // =============================================================================
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import { type Orb } from '../types';
 import { SpatialGrid } from '../../grid/core/SpatialGrid';
 import { type ViewportCells } from '../../grid/types';
@@ -30,7 +30,7 @@ interface UseOrbManagerOptions {
  */
 interface UseOrbManagerReturn {
 	/** Ref to the internal orbs array for high-performance loop access. */
-	orbsRef: React.MutableRefObject<Orb[]>;
+	orbsRef: React.RefObject<Orb[]>;
 	/** React state for orbs (for UI sync). */
 	orbs: Orb[];
 	/** Currently selected orb ID. */
@@ -38,7 +38,7 @@ interface UseOrbManagerReturn {
 	/** Currently selected orb data (real-time). */
 	selectedOrbData: Orb | null;
 	/** Ref for stable access to selected orb ID in loops. */
-	selectedOrbIdRef: React.MutableRefObject<string | null>;
+	selectedOrbIdRef: React.RefObject<string | null>;
 	/** Creates a new orb at the specified position. */
 	createOrb: (pxX: number, pxY: number, layer: number, size: number, grid: SpatialGrid, vpc: ViewportCells) => void;
 	/** Spawns a burst of orbs from a center point. */
@@ -65,60 +65,76 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 	const orbsRef = useRef<Orb[]>([]);
 	const [orbs, setOrbs] = useState<Orb[]>([]);
 
-	// Sub-hooks
-	const selection = useOrbSelection();
-	const spawning = useOrbSpawning({
+	// Sub-hooks - destructure to get stable references
+	const {
+		selectedOrbId,
+		selectedOrbData,
+		selectedOrbIdRef,
+		selectOrb: selectionSelectOrb,
+		updateSelectedOrbData: selectionUpdateSelectedOrbData,
+	} = useOrbSelection();
+
+	const {
+		spawnOrbBurst: spawningSpawnOrbBurst,
+		spawnRandomOrbs: spawningSpawnRandomOrbs,
+	} = useOrbSpawning({
 		burstConfig: options.burstConfig,
 		continuousConfig: options.continuousConfig,
 	});
-	const crud = useOrbCRUD({
+
+	const {
+		createOrb: crudCreateOrb,
+		deleteOrb: crudDeleteOrb,
+		syncOrbsState: crudSyncOrbsState,
+	} = useOrbCRUD({
 		spawnConfig: options.spawnConfig,
 	});
 
 	// Wrapper functions that pass shared state to sub-hooks
-	const createOrb = (pxX: number, pxY: number, z: number, size: number, grid: SpatialGrid, vpc: ViewportCells) => {
+	const createOrb = useCallback((pxX: number, pxY: number, z: number, size: number, grid: SpatialGrid, vpc: ViewportCells) => {
 		const setSelectedOrbId = (id: string) => {
-			selection.selectOrb(id, orbsRef);
+			selectionSelectOrb(id, orbsRef);
 		};
-		crud.createOrb(pxX, pxY, z, size, grid, vpc, orbsRef, setOrbs, setSelectedOrbId, selection.selectedOrbIdRef);
-	};
+		crudCreateOrb(pxX, pxY, z, size, grid, vpc, orbsRef, setOrbs, setSelectedOrbId, selectedOrbIdRef);
+	}, [crudCreateOrb, selectionSelectOrb, selectedOrbIdRef]);
 
-	const deleteOrb = (id: string, grid: SpatialGrid, vpc: ViewportCells) => {
+	const deleteOrb = useCallback((id: string, grid: SpatialGrid, vpc: ViewportCells) => {
 		const setSelectedOrbIdWrapper = (id: string | null) => {
-			selection.selectOrb(id, orbsRef);
+			selectionSelectOrb(id, orbsRef);
 		};
-		const setSelectedOrbDataWrapper = (_data: Orb | null) => {
+		const setSelectedOrbDataWrapper = () => {
 			// Data is already set by selectOrb
 		};
-		crud.deleteOrb(id, grid, vpc, orbsRef, setOrbs, setSelectedOrbIdWrapper, setSelectedOrbDataWrapper, selection.selectedOrbIdRef);
-	};
+		crudDeleteOrb(id, grid, vpc, orbsRef, setOrbs, setSelectedOrbIdWrapper, setSelectedOrbDataWrapper, selectedOrbIdRef);
+	}, [crudDeleteOrb, selectionSelectOrb, selectedOrbIdRef]);
 
-	const spawnOrbBurst = (centerX: number, centerY: number, grid: SpatialGrid, vpc: ViewportCells) => {
-		spawning.spawnOrbBurst(centerX, centerY, grid, vpc, orbsRef, setOrbs);
-	};
+	const spawnOrbBurst = useCallback((centerX: number, centerY: number, grid: SpatialGrid, vpc: ViewportCells) => {
+		spawningSpawnOrbBurst(centerX, centerY, grid, vpc, orbsRef, setOrbs);
+	}, [spawningSpawnOrbBurst]);
 
-	const spawnRandomOrbs = (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells): number => {
-		return spawning.spawnRandomOrbs(count, screenWidth, screenHeight, grid, vpc, orbsRef, setOrbs);
-	};
+	const spawnRandomOrbs = useCallback((count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells): number => {
+		return spawningSpawnRandomOrbs(count, screenWidth, screenHeight, grid, vpc, orbsRef, setOrbs);
+	}, [spawningSpawnRandomOrbs]);
 
-	const selectOrb = (id: string | null) => {
-		selection.selectOrb(id, orbsRef);
-	};
+	const selectOrb = useCallback((id: string | null) => {
+		selectionSelectOrb(id, orbsRef);
+	}, [selectionSelectOrb]);
 
-	const updateSelectedOrbData = () => {
-		selection.updateSelectedOrbData(orbsRef);
-	};
+	const updateSelectedOrbData = useCallback(() => {
+		selectionUpdateSelectedOrbData(orbsRef);
+	}, [selectionUpdateSelectedOrbData]);
 
-	const syncOrbsState = () => {
-		crud.syncOrbsState(orbsRef, setOrbs);
-	};
+	const syncOrbsState = useCallback(() => {
+		crudSyncOrbsState(orbsRef, setOrbs);
+	}, [crudSyncOrbsState]);
 
-	return {
+	// Memoize return object to prevent unnecessary re-renders in consumers
+	return useMemo(() => ({
 		orbsRef,
 		orbs,
-		selectedOrbId: selection.selectedOrbId,
-		selectedOrbData: selection.selectedOrbData,
-		selectedOrbIdRef: selection.selectedOrbIdRef,
+		selectedOrbId,
+		selectedOrbData,
+		selectedOrbIdRef,
 		createOrb,
 		spawnOrbBurst,
 		spawnRandomOrbs,
@@ -126,5 +142,17 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 		selectOrb,
 		updateSelectedOrbData,
 		syncOrbsState,
-	};
+	}), [
+		orbs,
+		selectedOrbId,
+		selectedOrbData,
+		selectedOrbIdRef,
+		createOrb,
+		spawnOrbBurst,
+		spawnRandomOrbs,
+		deleteOrb,
+		selectOrb,
+		updateSelectedOrbData,
+		syncOrbsState,
+	]);
 }

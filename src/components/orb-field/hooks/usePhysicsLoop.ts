@@ -45,6 +45,9 @@ export interface UsePhysicsLoopReturn {
  * 
  * Single Responsibility: Physics phase orchestration only.
  */
+// Track callback recreation
+let runPhysicsCreationCount = 0;
+
 export function usePhysicsLoop(options: UsePhysicsLoopOptions): UsePhysicsLoopReturn {
 	const { getEffectiveTime, spawnRandomOrbs, syncOrbsState } = options;
 
@@ -114,13 +117,17 @@ export function usePhysicsLoop(options: UsePhysicsLoopOptions): UsePhysicsLoopRe
 				burstTimeRef.current,
 				isPageVisibleRef.current,
 				enableOrbSpawningRef.current,
-				spawnRandomOrbs
+				spawnRandomOrbs,
+				deltaTime
 			);
 		} else if (easedProgress >= 1 && pausePhysicsRef.current) {
 			// When paused, still mark orbs for rendering
 			PhaseGridMarking.markInitial(orbsRef.current, grid, vpc);
 		}
 	}, [getEffectiveTime, spawnRandomOrbs, syncOrbsState]);
+
+	// Log when runPhysics is recreated
+	console.log('[usePhysicsLoop] runPhysics created, count:', ++runPhysicsCreationCount);
 
 	return {
 		runPhysics,

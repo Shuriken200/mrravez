@@ -26,11 +26,11 @@ interface UseOrbCRUDOptions {
  */
 export interface UseOrbCRUDReturn {
 	/** Creates a new orb at the specified position. */
-	createOrb: (pxX: number, pxY: number, z: number, size: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.MutableRefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void, setSelectedOrbId: (id: string) => void, selectedOrbIdRef: React.MutableRefObject<string | null>) => void;
+	createOrb: (pxX: number, pxY: number, z: number, size: number, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.RefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void, setSelectedOrbId: (id: string) => void, selectedOrbIdRef: React.RefObject<string | null>) => void;
 	/** Deletes an orb by ID. */
-	deleteOrb: (id: string, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.MutableRefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void, setSelectedOrbId: (id: string | null) => void, setSelectedOrbData: (data: Orb | null) => void, selectedOrbIdRef: React.MutableRefObject<string | null>) => void;
+	deleteOrb: (id: string, grid: SpatialGrid, vpc: ViewportCells, orbsRef: React.RefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void, setSelectedOrbId: (id: string | null) => void, setSelectedOrbData: (data: Orb | null) => void, selectedOrbIdRef: React.RefObject<string | null>) => void;
 	/** Syncs React state with orbsRef. */
-	syncOrbsState: (orbsRef: React.MutableRefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => void;
+	syncOrbsState: (orbsRef: React.RefObject<Orb[]>, setOrbs: (orbs: Orb[]) => void) => void;
 }
 
 /**
@@ -51,10 +51,10 @@ export function useOrbCRUD(options: UseOrbCRUDOptions = {}): UseOrbCRUDReturn {
 		size: number,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		setOrbs: (orbs: Orb[]) => void,
 		setSelectedOrbId: (id: string) => void,
-		selectedOrbIdRef: React.MutableRefObject<string | null>
+		selectedOrbIdRef: React.RefObject<string | null>
 	) => {
 		// Validate spawn position
 		if (!SpawnValidation.canSpawn(pxX, pxY, z, size, grid, vpc)) {
@@ -97,11 +97,11 @@ export function useOrbCRUD(options: UseOrbCRUDOptions = {}): UseOrbCRUDReturn {
 		id: string,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		setOrbs: (orbs: Orb[]) => void,
 		setSelectedOrbId: (id: string | null) => void,
 		setSelectedOrbData: (data: Orb | null) => void,
-		selectedOrbIdRef: React.MutableRefObject<string | null>
+		selectedOrbIdRef: React.RefObject<string | null>
 	) => {
 		const orbToDelete = orbsRef.current.find(o => o.id === id);
 		if (orbToDelete) {
@@ -118,15 +118,15 @@ export function useOrbCRUD(options: UseOrbCRUDOptions = {}): UseOrbCRUDReturn {
 	}, []);
 
 	const syncOrbsState = useCallback((
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		setOrbs: (orbs: Orb[]) => void
 	) => {
 		setOrbs([...orbsRef.current]);
 	}, []);
 
-	return {
+	return useMemo(() => ({
 		createOrb,
 		deleteOrb,
 		syncOrbsState,
-	};
+	}), [createOrb, deleteOrb, syncOrbsState]);
 }

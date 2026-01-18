@@ -53,7 +53,21 @@ export function useOrbBurst(params: UseOrbBurstParams): UseOrbBurstReturn {
 	const burstTimeRef = useRef<number | null>(null);
 	const hasBurstRef = useRef(false);
 
+	// Use refs for potentially unstable dependencies to prevent effect re-runs
+	const spawnOrbBurstRef = useRef(spawnOrbBurst);
+	const windowSizeRef = useRef(windowSize);
+
+	// Keep refs up to date
 	useEffect(() => {
+		spawnOrbBurstRef.current = spawnOrbBurst;
+	}, [spawnOrbBurst]);
+
+	useEffect(() => {
+		windowSizeRef.current = windowSize;
+	}, [windowSize]);
+
+	useEffect(() => {
+		console.log('[useOrbBurst] EFFECT - triggerBurst:', triggerBurst, 'hasBurst:', hasBurstRef.current);
 		if (!triggerBurst || hasBurstRef.current) return;
 
 		const checkAndBurst = () => {
@@ -61,12 +75,13 @@ export function useOrbBurst(params: UseOrbBurstParams): UseOrbBurstReturn {
 
 			const grid = gridRef.current;
 			const vpc = viewportCellsRef.current;
+			const ws = windowSizeRef.current;
 
-			if (grid && vpc && windowSize.width > 0) {
+			if (grid && vpc && ws.width > 0) {
 				hasBurstRef.current = true;
-				const centerX = (windowSize.width / 2) - currentScrollOffsetRef.current!.x;
-				const centerY = (windowSize.height / 2) - currentScrollOffsetRef.current!.y;
-				spawnOrbBurst(centerX, centerY, grid, vpc);
+				const centerX = (ws.width / 2) - currentScrollOffsetRef.current!.x;
+				const centerY = (ws.height / 2) - currentScrollOffsetRef.current!.y;
+				spawnOrbBurstRef.current(centerX, centerY, grid, vpc);
 				burstTimeRef.current = performance.now();
 			} else {
 				requestAnimationFrame(checkAndBurst);
@@ -74,7 +89,7 @@ export function useOrbBurst(params: UseOrbBurstParams): UseOrbBurstReturn {
 		};
 
 		checkAndBurst();
-	}, [triggerBurst, spawnOrbBurst, windowSize, currentScrollOffsetRef, gridRef, viewportCellsRef]);
+	}, [triggerBurst, currentScrollOffsetRef, gridRef, viewportCellsRef]);
 
 	return {
 		burstTimeRef,

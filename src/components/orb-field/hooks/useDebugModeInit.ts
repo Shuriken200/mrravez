@@ -19,7 +19,7 @@ export interface UseDebugModeInitReturn {
  * 
  * Single Responsibility: Debug mode initialization only.
  */
-export function useDebugModeInit(isDebugModeRef: React.MutableRefObject<boolean>): UseDebugModeInitReturn {
+export function useDebugModeInit(isDebugModeRef: React.RefObject<boolean>): UseDebugModeInitReturn {
 	const [isDebugMode, setIsDebugMode] = useState(false);
 
 	useEffect(() => {

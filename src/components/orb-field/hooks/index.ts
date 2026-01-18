@@ -2,7 +2,7 @@
 // Orb Field Hooks - Exports for all orb-field custom hooks
 // =============================================================================
 
-export { useParallaxOffset } from './useParallaxOffset';
+export { useParallaxOffset, type UseParallaxOffsetReturn } from './useParallaxOffset';
 export { useAnimationLoop, type LoopCallback } from './useAnimationLoop';
 export { useDebugStateSync, type UseDebugStateSyncReturn } from './useDebugStateSync';
 export { useDebugOptionRefs, type DebugOptionRefs } from './useDebugOptionRefs';

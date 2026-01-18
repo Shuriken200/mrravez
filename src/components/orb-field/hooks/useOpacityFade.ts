@@ -4,7 +4,7 @@
 // useOpacityFade - Opacity fade calculation
 // =============================================================================
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { DEFAULT_ORBFIELD_CONFIG } from '../shared/config';
 
 /**
@@ -27,7 +27,7 @@ interface OpacityFadeParams {
 export function useOpacityFade() {
 	const opacityRef = useRef(1);
 
-	const calculateOpacity = ({ baseOpacity, easedProgress, isDebugMode }: OpacityFadeParams): number => {
+	const calculateOpacity = useCallback(({ baseOpacity, easedProgress, isDebugMode }: OpacityFadeParams): number => {
 		if (isDebugMode) {
 			return 1;
 		}
@@ -39,13 +39,13 @@ export function useOpacityFade() {
 		}
 
 		return baseOpacity;
-	};
+	}, []);
 
-	const updateOpacity = (canvas: HTMLCanvasElement | null, opacity: number): void => {
+	const updateOpacity = useCallback((canvas: HTMLCanvasElement | null, opacity: number): void => {
 		if (canvas) {
 			canvas.style.opacity = opacity.toString();
 		}
-	};
+	}, []);
 
 	return {
 		calculateOpacity,

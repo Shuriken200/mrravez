@@ -4,7 +4,7 @@
 // useOrbSelection - Orb selection state management
 // =============================================================================
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { type Orb } from '../types';
 
 /**
@@ -16,11 +16,11 @@ export interface UseOrbSelectionReturn {
 	/** Currently selected orb data (real-time snapshot). */
 	selectedOrbData: Orb | null;
 	/** Ref for stable access to selected orb ID in loops. */
-	selectedOrbIdRef: React.MutableRefObject<string | null>;
+	selectedOrbIdRef: React.RefObject<string | null>;
 	/** Selects an orb by ID (null to deselect). */
-	selectOrb: (id: string | null, orbsRef: React.MutableRefObject<Orb[]>) => void;
+	selectOrb: (id: string | null, orbsRef: React.RefObject<Orb[]>) => void;
 	/** Updates the selected orb data snapshot from orbsRef. */
-	updateSelectedOrbData: (orbsRef: React.MutableRefObject<Orb[]>) => void;
+	updateSelectedOrbData: (orbsRef: React.RefObject<Orb[]>) => void;
 }
 
 /**
@@ -33,7 +33,7 @@ export function useOrbSelection(): UseOrbSelectionReturn {
 	const [selectedOrbData, setSelectedOrbData] = useState<Orb | null>(null);
 	const selectedOrbIdRef = useRef<string | null>(null);
 
-	const selectOrb = useCallback((id: string | null, orbsRef: React.MutableRefObject<Orb[]>) => {
+	const selectOrb = useCallback((id: string | null, orbsRef: React.RefObject<Orb[]>) => {
 		setSelectedOrbId(id);
 		selectedOrbIdRef.current = id;
 		if (id) {
@@ -44,7 +44,7 @@ export function useOrbSelection(): UseOrbSelectionReturn {
 		}
 	}, []);
 
-	const updateSelectedOrbData = useCallback((orbsRef: React.MutableRefObject<Orb[]>) => {
+	const updateSelectedOrbData = useCallback((orbsRef: React.RefObject<Orb[]>) => {
 		if (selectedOrbIdRef.current) {
 			const found = orbsRef.current.find(o => o.id === selectedOrbIdRef.current);
 			if (found) {
@@ -53,11 +53,11 @@ export function useOrbSelection(): UseOrbSelectionReturn {
 		}
 	}, []);
 
-	return {
+	return useMemo(() => ({
 		selectedOrbId,
 		selectedOrbData,
 		selectedOrbIdRef,
 		selectOrb,
 		updateSelectedOrbData,
-	};
+	}), [selectedOrbId, selectedOrbData, selectOrb, updateSelectedOrbData]);
 }

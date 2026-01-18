@@ -56,18 +56,41 @@ export function useAnimationLoop({
 	const loopIdRef = useRef<number | null>(null);
 	const lastFrameTimeRef = useRef<number>(0);
 	const hasAnimatedRef = useRef(false);
+	const hasStartedRef = useRef(false);
 
-	// Stable callback wrapper
+	// Stable callback wrappers - updated via refs to avoid effect re-runs
 	const onLoopRef = useRef(onLoop);
+	const onAnimationCompleteRef = useRef(onAnimationComplete);
+	const revealDurationRef = useRef(revealDuration);
+
 	useEffect(() => {
+		console.log('[useAnimationLoop] onLoop ref updated');
 		onLoopRef.current = onLoop;
 	}, [onLoop]);
 
 	useEffect(() => {
-		if (!visible || !gridConfig) return;
+		onAnimationCompleteRef.current = onAnimationComplete;
+	}, [onAnimationComplete]);
+
+	useEffect(() => {
+		revealDurationRef.current = revealDuration;
+	}, [revealDuration]);
+
+	// Main effect - only depends on visible and whether gridConfig exists (as boolean)
+	const hasGridConfig = gridConfig !== null;
+
+	useEffect(() => {
+		console.log('[useAnimationLoop] MAIN EFFECT - visible:', visible, 'hasGridConfig:', hasGridConfig, 'hasStarted:', hasStartedRef.current);
+		
+		// Don't restart if we've already started the animation
+		if (hasStartedRef.current) return;
+		if (!visible || !hasGridConfig) return;
+
+		hasStartedRef.current = true;
+		console.log('[useAnimationLoop] Starting animation loop');
 
 		animatorRef.current = new GridAnimator(
-			revealDuration,
+			revealDurationRef.current,
 			(progress, eased) => {
 				const now = performance.now();
 				const dt = lastFrameTimeRef.current ? (now - lastFrameTimeRef.current) / 1000 : 0;
@@ -79,7 +102,7 @@ export function useAnimationLoop({
 				hasAnimatedRef.current = true;
 
 				// Notify parent that grid animation is complete
-				onAnimationComplete?.();
+				onAnimationCompleteRef.current?.();
 
 				// Continue with physics loop after reveal
 				const physicsLoop = () => {
@@ -97,11 +120,16 @@ export function useAnimationLoop({
 		);
 
 		animatorRef.current.start();
+	}, [visible, hasGridConfig]);
 
+	// Separate cleanup effect that only runs on unmount
+	useEffect(() => {
 		return () => {
+			console.log('[useAnimationLoop] Unmount cleanup');
 			animatorRef.current?.stop();
 			if (loopIdRef.current) cancelAnimationFrame(loopIdRef.current);
 			hasAnimatedRef.current = false;
+			hasStartedRef.current = false;
 		};
-	}, [visible, gridConfig, revealDuration, onAnimationComplete]);
+	}, []);
 }

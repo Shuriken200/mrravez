@@ -25,8 +25,8 @@ interface UseGridInitializationParams {
 export interface UseGridInitializationReturn {
 	gridConfig: GridConfig | null;
 	viewportCells: ViewportCells | null;
-	gridRef: React.MutableRefObject<SpatialGrid | null>;
-	viewportCellsRef: React.MutableRefObject<ViewportCells | null>;
+	gridRef: React.RefObject<SpatialGrid | null>;
+	viewportCellsRef: React.RefObject<ViewportCells | null>;
 }
 
 /**
@@ -42,8 +42,14 @@ export function useGridInitialization(params: UseGridInitializationParams): UseG
 	const gridRef = useRef<SpatialGrid | null>(null);
 	const viewportCellsRef = useRef<ViewportCells | null>(null);
 
+	// Extract primitive values from windowSize to avoid object identity issues
+	const windowWidth = windowSize.width;
+	const windowHeight = windowSize.height;
+
 	useEffect(() => {
-		if (windowSize.width === 0) return;
+		if (windowWidth === 0) return;
+
+		console.log('[useGridInitialization] Creating new grid for window:', windowWidth, windowHeight);
 
 		const config = GridConfigFactory.create(window, {
 			targetCellSizeCm: isMobile ? 0.25 : 0.5,
@@ -59,7 +65,7 @@ export function useGridInitialization(params: UseGridInitializationParams): UseG
 			setGridConfig(config);
 			setViewportCells(vpc);
 		});
-	}, [windowSize, isMobile]);
+	}, [windowWidth, windowHeight, isMobile]);
 
 	return {
 		gridConfig,

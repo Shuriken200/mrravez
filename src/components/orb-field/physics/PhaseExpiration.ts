@@ -24,7 +24,7 @@ export class PhaseExpiration {
 	 * @param syncOrbsState - Function to sync React state.
 	 */
 	static execute(
-		orbsRef: React.MutableRefObject<Orb[]>,
+		orbsRef: React.RefObject<Orb[]>,
 		grid: SpatialGrid,
 		vpc: ViewportCells,
 		currentTime: number,
@@ -35,7 +35,7 @@ export class PhaseExpiration {
 
 		const currentOrbs = orbsRef.current;
 		const expiredOrbs = currentOrbs.filter(orb => (currentTime - orb.createdAt) > orb.lifetimeMs);
-		
+
 		if (expiredOrbs.length > 0) {
 			for (const expiredOrb of expiredOrbs) {
 				OrbGridMarking.clearOrbCircular(grid, expiredOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);

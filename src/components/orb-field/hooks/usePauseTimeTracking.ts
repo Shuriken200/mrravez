@@ -4,7 +4,7 @@
 // usePauseTimeTracking - Tracks pause/resume time offsets
 // =============================================================================
 
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 
 /**
  * Pause time tracking refs.
@@ -34,7 +34,7 @@ export function usePauseTimeTracking(): UsePauseTimeTrackingReturn {
 	/**
 	 * Handles pause state changes, updating time offsets.
 	 */
-	const handlePauseChange = (wasPaused: boolean, isPaused: boolean): void => {
+	const handlePauseChange = useCallback((wasPaused: boolean, isPaused: boolean): void => {
 		if (!wasPaused && isPaused) {
 			pausedAtTimeRef.current = performance.now();
 		} else if (wasPaused && !isPaused) {
@@ -43,7 +43,7 @@ export function usePauseTimeTracking(): UsePauseTimeTrackingReturn {
 				pausedAtTimeRef.current = null;
 			}
 		}
-	};
+	}, []);
 
 	return {
 		pausedAtTimeRef,

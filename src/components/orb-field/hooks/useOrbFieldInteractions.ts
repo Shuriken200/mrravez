@@ -13,13 +13,13 @@ import { SpatialGrid } from '../grid/core/SpatialGrid';
  */
 interface UseOrbFieldInteractionsParams {
 	gridConfig: GridConfig | null;
-	viewportCellsRef: React.MutableRefObject<ViewportCells | null>;
-	gridRef: React.MutableRefObject<SpatialGrid | null>;
-	currentLayerRef: React.MutableRefObject<number>;
+	viewportCellsRef: React.RefObject<ViewportCells | null>;
+	gridRef: React.RefObject<SpatialGrid | null>;
+	currentLayerRef: React.RefObject<number>;
 	orbSize: number;
 	isDebugMode: boolean;
-	currentScrollOffsetRef: React.MutableRefObject<{ x: number; y: number }>;
-	enableSpawnOnClickRef: React.MutableRefObject<boolean>;
+	currentScrollOffsetRef: React.RefObject<{ x: number; y: number }>;
+	enableSpawnOnClickRef: React.RefObject<boolean>;
 	createOrb: (pxX: number, pxY: number, layer: number, size: number, grid: SpatialGrid, vpc: ViewportCells) => void;
 	deleteOrb: (id: string, grid: SpatialGrid, vpc: ViewportCells) => void;
 }
@@ -29,7 +29,7 @@ interface UseOrbFieldInteractionsParams {
  */
 export interface UseOrbFieldInteractionsReturn {
 	hoveredCell: { x: number; y: number; worldX: number; worldY: number } | null;
-	hoveredCellRef: React.MutableRefObject<{ x: number; y: number; worldX: number; worldY: number } | null>;
+	hoveredCellRef: React.RefObject<{ x: number; y: number; worldX: number; worldY: number } | null>;
 	handleMouseMove: (e: React.MouseEvent) => void;
 	handleClick: (e: React.MouseEvent) => void;
 	handleMouseLeave: () => void;

@@ -4,6 +4,7 @@
 // useDebugStateSync - Orchestrates debug state management
 // =============================================================================
 
+import { useCallback } from 'react';
 import { usePauseTimeTracking, getEffectiveTime, type PauseTimeRefs } from './usePauseTimeTracking';
 import { useDebugModeInit } from './useDebugModeInit';
 import { useDebugOptionRefs, type DebugOptionRefs } from './useDebugOptionRefs';
@@ -58,10 +59,15 @@ export function useDebugStateSync(): UseDebugStateSyncReturn {
 		handlePauseChange: pauseTracking.handlePauseChange,
 	});
 
+	// Memoize getEffectiveTime to prevent recreating on every render
+	const getEffectiveTimeMemoized = useCallback(() => {
+		return getEffectiveTime(refs.pausePhysicsRef, pauseTracking.pausedAtTimeRef, pauseTracking.pausedTimeOffsetRef);
+	}, [refs.pausePhysicsRef, pauseTracking.pausedAtTimeRef, pauseTracking.pausedTimeOffsetRef]);
+
 	return {
 		...refs,
 		...pauseTracking,
 		isDebugMode,
-		getEffectiveTime: () => getEffectiveTime(refs.pausePhysicsRef, pauseTracking.pausedAtTimeRef, pauseTracking.pausedTimeOffsetRef),
+		getEffectiveTime: getEffectiveTimeMemoized,
 	};
 }

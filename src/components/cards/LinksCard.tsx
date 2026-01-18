@@ -2,14 +2,8 @@
 
 import { useRef, useEffect } from "react";
 import { GlassButton } from "@/components/glass";
+import { siteConfig } from "@/config/site.config";
 import { CardTemplate } from "./CardTemplate";
-
-const links = [
-	{ label: "University of Oslo", href: "https://people.uio.no/leon", icon: "uio" },
-	{ label: "LinkedIn", href: "https://www.linkedin.com/in/leonjbdb/", icon: "linkedin" },
-	{ label: "GitHub (Work)", href: "https://github.com/leon-uio", icon: "github" },
-	{ label: "GitHub (Personal)", href: "https://github.com/leonjbdb", icon: "github" },
-];
 
 function GitHubIcon() {
 	return (
@@ -111,7 +105,7 @@ export function LinksCard() {
 
 	return (
 		<CardTemplate title="Links">
-			<div 
+			<div
 				ref={containerRef}
 				style={{
 					display: 'flex',
@@ -121,7 +115,7 @@ export function LinksCard() {
 					width: '100%'
 				}}
 			>
-				{links.map(link => (
+				{siteConfig.links.map(link => (
 					<GlassButton
 						key={link.href}
 						href={link.href}

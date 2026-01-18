@@ -7,10 +7,10 @@ export const TOTAL_SECTIONS = 4;
 
 // Resting points for scroll snap (in viewport units)
 // These are the "bottom" points where cards are fully visible
-// Index 0 = Profile, 1 = Links, 2 = Contact (no Hi! since it's one-time)
+// Index 0 = About, 1 = Links, 2 = Contact (no Hi! since it's one-time)
 export const RESTING_POINTS = [0.75, 1.75, 2.75] as const;
 
-// Minimum scroll position once greeting is passed (profile card fully visible position)
+// Minimum scroll position once greeting is passed (about card fully visible position)
 export const MIN_SCROLL_AFTER_GREETING = 0.75;
 
 // Scroll snap debounce delay (ms) - quick response for snappy feel
@@ -27,7 +27,7 @@ export const MOBILE_BREAKPOINT = 768;
 // Stage 4: Hi! fully gone, Welcome starts appearing
 // Stage 5: Welcome fully visible
 // Stage 6: Welcome starts fading out
-// Stage 7: Welcome fully gone, profile card appears
+// Stage 7: Welcome fully gone, about card appears
 // Note: All timings delayed by 1500ms to let grid animation complete first
 export const STAGE_TIMINGS = {
 	stage1: 0,   // Hi! starts emerging (after 1500ms grid animation + 1500ms pause)
@@ -36,7 +36,7 @@ export const STAGE_TIMINGS = {
 	stage4: 9300,   // Hi! fully gone, Welcome starts
 	stage5: 10100,  // Welcome fully visible
 	stage6: 13100,  // 3s of Welcome, then start fade out
-	stage7: 14700,  // Welcome fully gone (1.6s fade), show profile
+	stage7: 14700,  // Welcome fully gone (1.6s fade), show about
 } as const;
 
 // Scroll zones for card visibility
@@ -54,8 +54,8 @@ export const SCROLL_ZONES = {
 		fadeOutStart: 0.28,
 		fadeOutEnd: 0.45,
 	},
-	// Profile: fully visible at start (entry 0-0), exit 0.95-1.25
-	profile: {
+	// About: fully visible at start (entry 0-0), exit 0.95-1.25
+	about: {
 		entryStart: 0,
 		entryEnd: 0,
 		exitStart: 0.95,
@@ -77,7 +77,7 @@ export const SCROLL_ZONES = {
 
 // Section thresholds for determining active section
 export const SECTION_THRESHOLDS = {
-	profileToLinks: 1.25,
+	aboutToLinks: 1.25,
 	linksToContact: 2.25,
 } as const;
 

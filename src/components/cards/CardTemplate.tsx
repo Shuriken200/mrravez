@@ -17,9 +17,9 @@ interface CardTemplateProps {
 export function CardTemplate({ title, children, contentGap = 20 }: CardTemplateProps) {
 	return (
 		<div className={styles.content} style={{ gap: `${contentGap}px` }}>
-			<h2 className={styles.title}>
+			<h1 className={styles.title}>
 				{title}
-			</h2>
+			</h1>
 			{children}
 		</div>
 	);

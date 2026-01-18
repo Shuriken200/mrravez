@@ -1,5 +1,5 @@
 export { CardTemplate } from './CardTemplate';
-export { ProfileCard } from './ProfileCard';
+export { AboutCard } from './AboutCard';
 export { LinksCard } from './LinksCard';
 export { ContactCard } from './ContactCard';
 

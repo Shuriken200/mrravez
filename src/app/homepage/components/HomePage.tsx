@@ -18,7 +18,7 @@ import styles from "../styles.module.css";
 
 interface HomePageProps {
 	/**
-	 * Initial section to display (0 = about/profile, 1 = links, 2 = contact)
+	 * Initial section to display (0 = about, 1 = links, 2 = contact)
 	 * When set, skips the greeting animation and starts directly at the specified section
 	 */
 	initialSection?: number;
@@ -109,7 +109,7 @@ export function HomePage({ initialSection }: HomePageProps) {
 					/>
 				)}
 
-				{/* Card carousel (Profile, Links, Contact) */}
+				{/* Card carousel (About, Links, Contact) */}
 				{/* When skipping animation, wait for grid animation to complete before showing cards */}
 				<CardCarousel
 					visibility={visibility}

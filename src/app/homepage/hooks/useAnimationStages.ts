@@ -56,7 +56,7 @@ function markIntroAsPlayed(): void {
  * Stage 4: Hi! fully gone, Welcome starts appearing
  * Stage 5: Welcome fully visible
  * Stage 6: Welcome starts fading out
- * Stage 7: Welcome fully gone, profile card appears
+ * Stage 7: Welcome fully gone, about card appears
  * 
  * @param options.skipAnimation - If true, skip directly to stage 7 (ready state)
  */

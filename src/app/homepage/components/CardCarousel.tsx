@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ProfileCard, LinksCard, ContactCard } from "@/components/cards";
+import { AboutCard, LinksCard, ContactCard } from "@/components/cards";
 import { GlassCard } from "@/components/glass";
 import { useDebugSafe } from "@/components/debug";
 import { cardsConfig } from "@/config/cards.config";
@@ -66,7 +66,7 @@ function AnimatedCard({
 
 /**
  * Renders all three cards with their visibility states
- * Profile, Links, and Contact cards with scroll-based animations
+ * About, Links, and Contact cards with scroll-based animations
  * 
  * Animation/transition logic is handled here via GlassCard wrapper,
  * card components only handle their content
@@ -83,7 +83,7 @@ export function CardCarousel({ visibility, isReady, activeSection }: CardCarouse
 	const showCards = debugContext?.state.showCards ?? localShowCards;
 
 	// Refs for each card container to manage focus
-	const profileCardRef = useRef<HTMLDivElement>(null);
+	const aboutCardRef = useRef<HTMLDivElement>(null);
 	const linksCardRef = useRef<HTMLDivElement>(null);
 	const contactCardRef = useRef<HTMLDivElement>(null);
 	const previousActiveSectionRef = useRef<number>(activeSection);
@@ -160,7 +160,7 @@ export function CardCarousel({ visibility, isReady, activeSection }: CardCarouse
 		return null;
 	}
 
-	const { profile, links, contact } = visibility;
+	const { about, links, contact } = visibility;
 
 	// Wrapper style for initial fade-in animation
 	const wrapperStyle: React.CSSProperties = {
@@ -193,16 +193,16 @@ export function CardCarousel({ visibility, isReady, activeSection }: CardCarouse
 				{`Now showing: ${cardsConfig[activeSection]?.label || 'Section'} section`}
 			</div>
 
-			{/* Profile card with scroll-based fade in/out */}
-			<div ref={profileCardRef} data-card-section="0">
+			{/* About card with scroll-based fade in/out */}
+			<div ref={aboutCardRef} data-card-section="0">
 				<AnimatedCard
-					visibility={profile}
+					visibility={about}
 					padding="clamp(16px, 4vw, 30px)"
 					mobilePadding="20px"
 					mobileBorderRadius={40}
 					ariaLabel="About section"
 				>
-					<ProfileCard />
+					<AboutCard />
 				</AnimatedCard>
 			</div>
 

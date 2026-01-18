@@ -3,34 +3,34 @@
  * Add, remove, or reorder cards here - carousel and dots auto-adapt
  */
 
-import { ProfileCard, LinksCard, ContactCard } from "@/components/cards";
+import { AboutCard, LinksCard, ContactCard } from "@/components/cards";
 
 export interface CardConfig {
-    id: string;           // Unique identifier
-    path: string;         // URL path (e.g., "/about")
-    label: string;        // For accessibility
-    component: React.ComponentType;  // Pure content component (no animation props)
+	id: string;           // Unique identifier
+	path: string;         // URL path (e.g., "/about")
+	label: string;        // For accessibility
+	component: React.ComponentType;  // Pure content component (no animation props)
 }
 
 export const cardsConfig: CardConfig[] = [
-    {
-        id: "profile",
-        path: "/about",
-        label: "About",
-        component: ProfileCard,
-    },
-    {
-        id: "links",
-        path: "/links",
-        label: "Links",
-        component: LinksCard,
-    },
-    {
-        id: "contact",
-        path: "/contact",
-        label: "Contact",
-        component: ContactCard,
-    },
+	{
+		id: "about",
+		path: "/about",
+		label: "About",
+		component: AboutCard,
+	},
+	{
+		id: "links",
+		path: "/links",
+		label: "Links",
+		component: LinksCard,
+	},
+	{
+		id: "contact",
+		path: "/contact",
+		label: "Contact",
+		component: ContactCard,
+	},
 ];
 
 // Derived constants

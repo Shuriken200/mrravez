@@ -53,3 +53,11 @@ export function addCellFlag(cellState: CellState, flag: CellState): CellState {
 export function removeCellFlag(cellState: CellState, flag: CellState): CellState {
 	return cellState & ~flag;
 }
+
+/**
+ * Represents the current window dimensions.
+ */
+export interface WindowSize {
+	width: number;
+	height: number;
+}

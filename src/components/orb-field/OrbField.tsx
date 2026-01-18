@@ -8,8 +8,6 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { GridConfigFactory } from './grid/core/GridConfigFactory';
 import { ViewportCellsFactory } from './grid/core/ViewportCellsFactory';
 import { SpatialGrid } from './grid/core/SpatialGrid';
-import { OrbPhysics } from './orb/core/OrbPhysics';
-import { CollisionSystem } from './collision/CollisionSystem';
 import { useOrbManager } from './orb/hooks/useOrbManager';
 import { type GridConfig, type ViewportCells } from './grid/types';
 import {
@@ -19,39 +17,13 @@ import {
 	type GridRevealConfig,
 	type GridStyleConfig,
 } from './shared/config';
-import { DEFAULT_SPEED_LIMIT_CONFIG, DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_LAYER_ATTRACTION_CONFIG, DEFAULT_CONTINUOUS_SPAWN_CONFIG } from './orb/config';
+import { DEFAULT_CONTINUOUS_SPAWN_CONFIG } from './orb/config';
 import { OrbVisualRenderer } from './orb/visuals/OrbVisualRenderer';
 import { GridRenderer } from './grid/visuals/GridRenderer';
-import { GridAnimator } from './grid/visuals/GridAnimator';
-import { OrbDebugPanel } from './debug-info/components/OrbDebugPanel';
-import { GridDebugPanel } from './debug-info/components/GridDebugPanel';
-import { useDebugSafe, GlassDebugMenu } from '@/components/debug';
-
-/** Debug mode flag - checks both environment variable and localStorage. */
-const getDebugMode = (): boolean => {
-	// Server-side or initial load: use environment variable
-	if (typeof window === 'undefined') {
-		return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-	}
-	// Client-side: check localStorage first, fall back to environment variable
-	const stored = localStorage.getItem('debug-mode-enabled');
-	if (stored !== null) {
-		return stored === 'true';
-	}
-	return process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-};
-
-/** Pixels of grid/orb movement per viewport unit of scroll progress. */
-const SCROLL_OFFSET_PX_PER_UNIT = 100;
-
-/** Reference scroll progress where offset is zero (first resting point). */
-const SCROLL_OFFSET_REFERENCE = 0.75;
-
-/** Smoothing factor for interpolating scroll offset (0-1, lower = smoother). */
-const SCROLL_OFFSET_SMOOTHING = 0.08;
-
-/** Pixels of grid movement per unit of device tilt (0-1 range). */
-const DEVICE_TILT_OFFSET_PX = 30;
+import { OrbDebugPanel, GridDebugPanel } from './debug-info';
+import { GlassDebugMenu } from '@/components/debug';
+import { useParallaxOffset, useAnimationLoop, useDebugStateSync, useEventHandlers, usePhysicsLoop } from './hooks';
+import styles from './OrbField.module.css';
 
 /**
  * Props for the OrbField component.
@@ -94,60 +66,28 @@ interface OrbFieldProps {
  */
 export function OrbField({
 	visible = true,
-	layer: initialLayer = 50, // Start in middle layer (of 100) for 3D movement
+	layer: initialLayer = 50,
 	opacity = DEFAULT_ORBFIELD_CONFIG.defaultOpacity,
 	revealConfig: revealOverrides,
 	styleConfig: styleOverrides,
 	triggerBurst = false,
 	onAnimationComplete,
-	scrollProgress = SCROLL_OFFSET_REFERENCE,
+	scrollProgress = 0.75,
 	isMobile = false,
 	deviceTiltX = 0.5,
 	deviceTiltY = 0.5,
 }: OrbFieldProps) {
 	// =========================================================================
-	// Refs for High-Performance Loop (No Re-renders)
+	// Refs for High-Performance Loop
 	// =========================================================================
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const visualCanvasRef = useRef<HTMLCanvasElement>(null);
 	const gridRef = useRef<SpatialGrid | null>(null);
-	const animatorRef = useRef<GridAnimator | null>(null);
-	const loopIdRef = useRef<number | null>(null);
-	const lastFrameTimeRef = useRef<number>(0);
-	const rollProgressRef = useRef(0);
-	const hasAnimatedRef = useRef(false);
-
-	// Refs for stable loop access without triggering effects
 	const viewportCellsRef = useRef<ViewportCells | null>(null);
-	const windowSizeRef = useRef({ width: 0, height: 0 });
 	const currentLayerRef = useRef(initialLayer);
 	const hoveredCellRef = useRef<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
-	const burstTimeRef = useRef<number | null>(null); // Track when burst happened for delayed continuous spawning
-	const mousePosRef = useRef<{ x: number; y: number } | null>(null); // Track mouse position for orb repulsion
-	const hasBurstRef = useRef(false); // Track if burst has already happened (prevent double burst)
-	const isPageVisibleRef = useRef(typeof document !== 'undefined' ? !document.hidden : true); // Track if page/tab is visible (pause spawning when hidden)
-	const scrollProgressRef = useRef(scrollProgress); // Track scroll progress for parallax offset
-	const isMobileRef = useRef(isMobile); // Track mobile mode for scroll direction
-	const deviceTiltXRef = useRef(deviceTiltX); // Track device tilt X for parallax offset
-	const deviceTiltYRef = useRef(deviceTiltY); // Track device tilt Y for parallax offset
-	const currentScrollOffsetRef = useRef({ x: 0, y: 0 }); // Smoothly interpolated scroll offset for rendering
-	const isDebugModeRef = useRef(false); // Track debug mode for animation loop
-	const pausedAtTimeRef = useRef<number | null>(null); // When physics was paused (for freezing time)
-	const pausedTimeOffsetRef = useRef(0); // Accumulated time while paused (to freeze animations)
-
-	// Debug option refs for animation loop access
-	const showGridRef = useRef(true);
-	const showCollisionAreaRef = useRef(true);
-	const showAvoidanceAreaRef = useRef(true);
-	const showGraphicsRef = useRef(true);
-	const enableOrbSpawningRef = useRef(true);
-	const enableOrbDespawningRef = useRef(true);
-	const enableSpawnOnClickRef = useRef(true);
-	const pausePhysicsRef = useRef(false);
-	const disableCollisionsRef = useRef(false);
-	const disableAvoidanceRef = useRef(false);
-	const showArrowVectorRef = useRef(true);
-	const showTruePositionRef = useRef(true);
+	const burstTimeRef = useRef<number | null>(null);
+	const hasBurstRef = useRef(false);
 
 	// =========================================================================
 	// React State for UI
@@ -157,144 +97,31 @@ export function OrbField({
 	const [currentLayer, setCurrentLayer] = useState(initialLayer);
 	const [orbSize, setOrbSize] = useState(1);
 	const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
-	const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
-	const [isMounted, setIsMounted] = useState(false);
-	const [isDebugMode, setIsDebugMode] = useState(false);
 
 	// =========================================================================
-	// Debug Context Integration
+	// Custom Hooks
 	// =========================================================================
-	const debugContext = useDebugSafe();
+	const { windowSize, mousePosRef, isPageVisibleRef, isMounted } = useEventHandlers();
+	const {
+		showGridRef,
+		showCollisionAreaRef,
+		showAvoidanceAreaRef,
+		showGraphicsRef,
+		enableOrbSpawningRef,
+		enableOrbDespawningRef,
+		enableSpawnOnClickRef,
+		pausePhysicsRef,
+		disableCollisionsRef,
+		disableAvoidanceRef,
+		showArrowVectorRef,
+		showTruePositionRef,
+		isDebugModeRef,
+		isDebugMode,
+		getEffectiveTime,
+	} = useDebugStateSync();
 
-	// Sync debug options to refs for animation loop access
-	useEffect(() => {
-		if (debugContext?.state) {
-			showGridRef.current = debugContext.state.showGrid;
-			showCollisionAreaRef.current = debugContext.state.showCollisionArea;
-			showAvoidanceAreaRef.current = debugContext.state.showAvoidanceArea;
-			showGraphicsRef.current = debugContext.state.showGraphics;
-			enableOrbSpawningRef.current = debugContext.state.enableOrbSpawning;
-			enableOrbDespawningRef.current = debugContext.state.enableOrbDespawning;
-			enableSpawnOnClickRef.current = debugContext.state.enableSpawnOnClick;
-			showArrowVectorRef.current = debugContext.state.showArrowVector;
-			showTruePositionRef.current = debugContext.state.showTruePosition;
-			disableCollisionsRef.current = debugContext.state.disableCollisions;
-			disableAvoidanceRef.current = debugContext.state.disableAvoidance;
+	const currentScrollOffsetRef = useParallaxOffset(scrollProgress, isMobile, deviceTiltX, deviceTiltY);
 
-			// Handle pause state change
-			const wasPaused = pausePhysicsRef.current;
-			const isPaused = debugContext.state.pausePhysics;
-			pausePhysicsRef.current = isPaused;
-
-			// Track pause/resume for time freezing
-			if (!wasPaused && isPaused) {
-				// Just paused - record the time
-				pausedAtTimeRef.current = performance.now();
-			} else if (wasPaused && !isPaused) {
-				// Just resumed - accumulate the paused time
-				if (pausedAtTimeRef.current !== null) {
-					pausedTimeOffsetRef.current += performance.now() - pausedAtTimeRef.current;
-					pausedAtTimeRef.current = null;
-				}
-			}
-		}
-	}, [debugContext?.state]);
-
-	// Listen for debug option changes when context is not available (from GlassDebugMenu)
-	useEffect(() => {
-		const handleDebugOptionChange = (e: CustomEvent<{ key: string; value: boolean }>) => {
-			const { key, value } = e.detail;
-			switch (key) {
-				case "showGrid":
-					showGridRef.current = value;
-					break;
-				case "showCollisionArea":
-					showCollisionAreaRef.current = value;
-					break;
-				case "showAvoidanceArea":
-					showAvoidanceAreaRef.current = value;
-					break;
-				case "showGraphics":
-					showGraphicsRef.current = value;
-					break;
-				case "showArrowVector":
-					showArrowVectorRef.current = value;
-					break;
-				case "showTruePosition":
-					showTruePositionRef.current = value;
-					break;
-				case "enableOrbSpawning":
-					enableOrbSpawningRef.current = value;
-					break;
-				case "enableOrbDespawning":
-					enableOrbDespawningRef.current = value;
-					break;
-				case "enableSpawnOnClick":
-					enableSpawnOnClickRef.current = value;
-					break;
-				case "disableCollisions":
-					disableCollisionsRef.current = value;
-					break;
-				case "disableAvoidance":
-					disableAvoidanceRef.current = value;
-					break;
-				case "pausePhysics":
-					// Handle pause state change
-					const wasPaused = pausePhysicsRef.current;
-					const isPaused = value;
-					pausePhysicsRef.current = isPaused;
-
-					// Track pause/resume for time freezing
-					if (!wasPaused && isPaused) {
-						// Just paused - record the time
-						pausedAtTimeRef.current = performance.now();
-					} else if (wasPaused && !isPaused) {
-						// Just resumed - accumulate the paused time
-						if (pausedAtTimeRef.current !== null) {
-							pausedTimeOffsetRef.current += performance.now() - pausedAtTimeRef.current;
-							pausedAtTimeRef.current = null;
-						}
-					}
-
-					break;
-			}
-		};
-
-		window.addEventListener("debugOptionChanged", handleDebugOptionChange as EventListener);
-		return () => {
-			window.removeEventListener("debugOptionChanged", handleDebugOptionChange as EventListener);
-		};
-	}, []);
-
-	// Initialize debug mode on mount
-	useEffect(() => {
-		const debugMode = getDebugMode();
-		isDebugModeRef.current = debugMode;
-
-		// Use queueMicrotask to avoid cascading setState
-		queueMicrotask(() => {
-			setIsDebugMode(debugMode);
-		});
-
-		// Listen for debug mode changes from slider
-		const handleDebugModeChange = (e: CustomEvent) => {
-			const enabled = e.detail.enabled;
-			isDebugModeRef.current = enabled;
-			queueMicrotask(() => {
-				setIsDebugMode(enabled);
-			});
-		};
-
-		window.addEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-
-		return () => {
-			window.removeEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-		};
-	}, []);
-
-	// =========================================================================
-	// Orb Management (Delegated to Custom Hook)
-	// =========================================================================
 	const {
 		orbsRef,
 		orbs,
@@ -322,338 +149,92 @@ export function OrbField({
 		[styleOverrides]
 	);
 
-	// Calculate target orb count based on screen size
 	const targetOrbCount = useMemo(() => {
 		const { targetOrbCountAt4K, referenceScreenArea, minOrbCount } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
 		const screenArea = windowSize.width * windowSize.height;
 		const areaScale = screenArea / referenceScreenArea;
 		const scaledCount = Math.round(targetOrbCountAt4K * areaScale);
-		// Ensure at least minOrbCount orbs on mobile devices
 		return Math.max(minOrbCount, scaledCount);
 	}, [windowSize]);
 
-	// Config refs for stable loop access
-	const revealConfigRef = useRef(revealConfig);
-	const styleConfigRef = useRef(styleConfig);
 	const opacityRef = useRef(opacity);
-
-	// Sync refs with state changes
-	useEffect(() => { revealConfigRef.current = revealConfig; }, [revealConfig]);
-	useEffect(() => { styleConfigRef.current = styleConfig; }, [styleConfig]);
 	useEffect(() => { opacityRef.current = opacity; }, [opacity]);
 	useEffect(() => { currentLayerRef.current = currentLayer; }, [currentLayer]);
-	useEffect(() => { scrollProgressRef.current = scrollProgress; }, [scrollProgress]);
-	useEffect(() => { isMobileRef.current = isMobile; }, [isMobile]);
-	useEffect(() => { deviceTiltXRef.current = deviceTiltX; }, [deviceTiltX]);
-	useEffect(() => { deviceTiltYRef.current = deviceTiltY; }, [deviceTiltY]);
 
 	// =========================================================================
-	// 1. Mount & Resize Logic + Global Mouse Tracking
+	// Grid Initialization
 	// =========================================================================
-	useEffect(() => {
-		const frameId = requestAnimationFrame(() => setIsMounted(true));
-
-		if (typeof window === 'undefined') {
-			return () => cancelAnimationFrame(frameId);
-		}
-
-		const handleResize = () => {
-			const width = window.innerWidth;
-			const height = window.innerHeight;
-			setWindowSize({ width, height });
-			windowSizeRef.current = { width, height };
-		};
-
-		// Global mouse tracking for orb repulsion (works even when canvas has pointerEvents: none)
-		const handleGlobalMouseMove = (e: MouseEvent) => {
-			mousePosRef.current = { x: e.clientX, y: e.clientY };
-		};
-
-		const handleGlobalMouseLeave = () => {
-			mousePosRef.current = null;
-		};
-
-		// Global touch tracking for orb repulsion on mobile (same behavior as mouse)
-		const handleGlobalTouchMove = (e: TouchEvent) => {
-			// Prevent default to avoid scrolling issues while touching
-			// e.preventDefault(); // Commented out to allow natural scrolling
-			if (e.touches.length > 0) {
-				const touch = e.touches[0];
-				mousePosRef.current = { x: touch.clientX, y: touch.clientY };
-			}
-		};
-
-		const handleGlobalTouchStart = (e: TouchEvent) => {
-			if (e.touches.length > 0) {
-				const touch = e.touches[0];
-				mousePosRef.current = { x: touch.clientX, y: touch.clientY };
-			}
-		};
-
-		const handleGlobalTouchEnd = () => {
-			mousePosRef.current = null;
-		};
-
-		// Track page visibility AND window focus to pause spawning when inactive
-		// visibilitychange: fires when tab is hidden (e.g., switching browser tabs)
-		// blur/focus: fires when window loses/gains focus (e.g., switching to another app)
-		const updateVisibility = () => {
-			const isVisible = document.hasFocus() && !document.hidden;
-			isPageVisibleRef.current = isVisible;
-		};
-
-		const handleVisibilityChange = () => {
-			updateVisibility();
-		};
-
-		const handleWindowFocus = () => {
-			isPageVisibleRef.current = !document.hidden;
-		};
-
-		const handleWindowBlur = () => {
-			isPageVisibleRef.current = false;
-		};
-
-		// Set initial visibility state
-		updateVisibility();
-
-		handleResize();
-		window.addEventListener('resize', handleResize);
-		window.addEventListener('mousemove', handleGlobalMouseMove);
-		document.addEventListener('mouseleave', handleGlobalMouseLeave);
-		window.addEventListener('touchstart', handleGlobalTouchStart, { passive: true });
-		window.addEventListener('touchmove', handleGlobalTouchMove, { passive: true });
-		window.addEventListener('touchend', handleGlobalTouchEnd);
-		window.addEventListener('touchcancel', handleGlobalTouchEnd);
-		document.addEventListener('visibilitychange', handleVisibilityChange);
-		window.addEventListener('focus', handleWindowFocus);
-		window.addEventListener('blur', handleWindowBlur);
-
-		return () => {
-			window.removeEventListener('resize', handleResize);
-			window.removeEventListener('mousemove', handleGlobalMouseMove);
-			document.removeEventListener('mouseleave', handleGlobalMouseLeave);
-			window.removeEventListener('touchstart', handleGlobalTouchStart);
-			window.removeEventListener('touchmove', handleGlobalTouchMove);
-			window.removeEventListener('touchend', handleGlobalTouchEnd);
-			window.removeEventListener('touchcancel', handleGlobalTouchEnd);
-			document.removeEventListener('visibilitychange', handleVisibilityChange);
-			window.removeEventListener('focus', handleWindowFocus);
-			window.removeEventListener('blur', handleWindowBlur);
-			cancelAnimationFrame(frameId);
-		};
-	}, []);
-
-	// =========================================================================
-	// 2. Grid Initialization (Only on Resize)
-	// =========================================================================
-
-	/**
-	 * Get the effective time for animations.
-	 * When paused, returns the frozen time (time at pause).
-	 * When not paused, returns current time minus accumulated pause duration.
-	 */
-	const getEffectiveTime = useCallback((): number => {
-		const now = performance.now();
-		if (pausePhysicsRef.current && pausedAtTimeRef.current !== null) {
-			// Currently paused - return the frozen time
-			return pausedAtTimeRef.current - pausedTimeOffsetRef.current;
-		}
-		// Not paused - return current time minus all accumulated paused time
-		return now - pausedTimeOffsetRef.current;
-	}, []);
-
 	useEffect(() => {
 		if (windowSize.width === 0) return;
 
-		// Double grid density on mobile by halving cell size (0.5cm -> 0.25cm)
 		const config = GridConfigFactory.create(window, {
 			targetCellSizeCm: isMobile ? 0.25 : 0.5,
 		});
 		const newGrid = new SpatialGrid(config);
-
-		// Initialize border walls around grid edges
 		newGrid.initializeBorder();
-
 		const vpc = ViewportCellsFactory.create(config);
 
-		// Update refs for immediate loop access
 		gridRef.current = newGrid;
 		viewportCellsRef.current = vpc;
 
-		// Update React state asynchronously to avoid cascading renders
 		queueMicrotask(() => {
 			setGridConfig(config);
 			setViewportCells(vpc);
 		});
-
-		// Reset animation state on resize
-		hasAnimatedRef.current = false;
-		rollProgressRef.current = 0;
 	}, [windowSize, isMobile]);
 
 	// =========================================================================
-	// 3. Unified Update Loop
+	// Physics Loop
+	// =========================================================================
+	const { runPhysics } = usePhysicsLoop({
+		getEffectiveTime,
+		spawnRandomOrbs,
+		syncOrbsState,
+	});
+
+	// =========================================================================
+	// Rendering Loop
 	// =========================================================================
 	const runLoop = useCallback((easedProgress: number, deltaTime: number) => {
 		const canvas = canvasRef.current;
+		const visualCanvas = visualCanvasRef.current;
 		const grid = gridRef.current;
 		const vpc = viewportCellsRef.current;
-		const ws = windowSizeRef.current;
 
-		if (!canvas || !grid || !vpc || ws.width === 0) return;
+		if (!canvas || !grid || !vpc || windowSize.width === 0) return;
 
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
 
-		// A. Physics Update (only after reveal completes and when not paused)
-		if (easedProgress >= 1 && !pausePhysicsRef.current) {
-			const currentOrbs = orbsRef.current;
+		// Run physics simulation
+		runPhysics(
+			easedProgress,
+			deltaTime,
+			orbsRef,
+			grid,
+			vpc,
+			windowSize,
+			mousePosRef,
+			isPageVisibleRef,
+			burstTimeRef,
+			pausePhysicsRef,
+			disableCollisionsRef,
+			disableAvoidanceRef,
+			enableOrbSpawningRef,
+			enableOrbDespawningRef
+		);
 
-			// Phase 1: Mark all orbs at current positions
-			grid.clearDynamic();
-			for (const orb of currentOrbs) {
-				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			}
-
-			// Phase 2: Apply mouse repulsion (2D only, affects all orbs once regardless of z-layer)
-			if (!disableAvoidanceRef.current) {
-				const mousePos = mousePosRef.current;
-				if (mousePos) {
-					CollisionSystem.applyMouseRepulsion(currentOrbs, mousePos.x, mousePos.y, deltaTime);
-				}
-			}
-
-			// Phase 3: Apply speed limits (larger orbs are slower)
-			const { baseMaxSpeed, minMaxSpeed, decelerationRate } = DEFAULT_SPEED_LIMIT_CONFIG;
-			for (const orb of currentOrbs) {
-				OrbPhysics.applySpeedLimit(orb, baseMaxSpeed, minMaxSpeed, decelerationRate, deltaTime);
-			}
-
-			// Phase 4: Apply wander behavior (organic velocity drift)
-			for (const orb of currentOrbs) {
-				OrbPhysics.applyWander(orb, deltaTime);
-			}
-
-			// Phase 5: Apply layer attraction (orbs drift toward preferred depth)
-			const { maxSize } = DEFAULT_ORB_SPAWN_CONFIG;
-			const { attractionStrength } = DEFAULT_LAYER_ATTRACTION_CONFIG;
-			const totalLayers = grid.config.layers;
-			for (const orb of currentOrbs) {
-				OrbPhysics.applyLayerAttraction(orb, maxSize, totalLayers, attractionStrength, deltaTime);
-			}
-
-			// Phase 5.5: Apply orb-orb avoidance (soft nudging when avoidance zones overlap)
-			if (!disableAvoidanceRef.current) {
-				CollisionSystem.applyAvoidanceRepulsion(currentOrbs, vpc, deltaTime);
-			}
-
-			// Phase 5.6: Resolve orb-orb collisions (hard bounce when bodies overlap)
-			if (!disableCollisionsRef.current) {
-				CollisionSystem.resolveOrbOrbCollisions(currentOrbs, vpc);
-			}
-
-			// Phase 6: Check wall collisions BEFORE movement, then move
-			for (const orb of currentOrbs) {
-				// Temporarily clear this orb's cells for collision check
-				OrbPhysics.clearOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-
-				const collision = CollisionSystem.checkMove(orb, deltaTime, grid, vpc);
-
-				// Restore orb's cells
-				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-
-				if (collision.blocked) {
-					// Reflect velocity on blocked axes BEFORE movement
-					CollisionSystem.applyReflection(orb, collision.reflectX, collision.reflectY, collision.reflectZ);
-				}
-
-				// Now move with (possibly reflected) velocity
-				OrbPhysics.updatePosition(orb, deltaTime);
-			}
-
-			// Phase 6.5: Safety check - unstick any orbs that ended up inside walls
-			for (const orb of currentOrbs) {
-				OrbPhysics.clearOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-				CollisionSystem.unstickFromWall(orb, grid, vpc);
-				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			}
-
-			// Phase 8: Re-mark at new positions for rendering
-			grid.clearDynamic();
-			for (const orb of currentOrbs) {
-				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			}
-
-			// Phase 9: Check and remove expired orbs (only if despawning is enabled)
-			const now = getEffectiveTime();
-			if (enableOrbDespawningRef.current) {
-				const expiredOrbs = currentOrbs.filter(orb => (now - orb.createdAt) > orb.lifetimeMs);
-				if (expiredOrbs.length > 0) {
-					for (const expiredOrb of expiredOrbs) {
-						OrbPhysics.clearOrbCircular(grid, expiredOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-					}
-					orbsRef.current = currentOrbs.filter(orb => (now - orb.createdAt) <= orb.lifetimeMs);
-					syncOrbsState(); // Update React state for UI
-				}
-			}
-
-			// Phase 10: Continuous spawning to maintain target orb count
-			// Only spawn if page is visible, burst has happened, and spawning is enabled
-			const burstTime = burstTimeRef.current;
-			const { targetOrbCountAt4K, referenceScreenArea, minOrbCount, delayAfterBurstMs, baseSpawnRateAt4K, maxSpawnsPerFrame } = DEFAULT_CONTINUOUS_SPAWN_CONFIG;
-			if (burstTime && (now - burstTime) > delayAfterBurstMs && isPageVisibleRef.current && enableOrbSpawningRef.current) {
-				// Scale target and spawn rate linearly with screen area
-				// At 4K (3840x2160): 600 orbs, at 1080p (1920x1080): ~150 orbs, minimum 50 orbs on mobile
-				const screenArea = ws.width * ws.height;
-				const areaScale = screenArea / referenceScreenArea;
-				const scaledCount = Math.round(targetOrbCountAt4K * areaScale);
-				const targetOrbCount = Math.max(minOrbCount, scaledCount);
-				const baseSpawnRate = baseSpawnRateAt4K * areaScale;
-
-				const currentCount = orbsRef.current.length;
-				const deficit = targetOrbCount - currentCount;
-
-				if (deficit > 0) {
-					// Calculate spawn rate based on deficit (more deficit = faster spawning)
-					// Use a smooth curve: spawn rate scales with how far below target we are
-					const deficitRatio = Math.min(1, deficit / targetOrbCount); // 0 to 1
-					const spawnRate = baseSpawnRate * deficitRatio; // orbs per second
-
-					// Calculate how many to spawn this frame (probabilistic for smooth spawning)
-					const expectedSpawns = spawnRate * deltaTime;
-					const guaranteedSpawns = Math.floor(expectedSpawns);
-					const fractionalChance = expectedSpawns - guaranteedSpawns;
-					const extraSpawn = Math.random() < fractionalChance ? 1 : 0;
-					const spawnsThisFrame = Math.min(guaranteedSpawns + extraSpawn, maxSpawnsPerFrame);
-
-					if (spawnsThisFrame > 0) {
-						spawnRandomOrbs(spawnsThisFrame, ws.width, ws.height, grid, vpc);
-					}
-				}
-			}
-		} else if (easedProgress >= 1 && pausePhysicsRef.current) {
-			// When paused, still mark orbs for rendering but don't update physics
-			const currentOrbs = orbsRef.current;
-			grid.clearDynamic();
-			for (const orb of currentOrbs) {
-				OrbPhysics.markOrbCircular(grid, orb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			}
+		// Canvas Size Sync
+		if (canvas.width !== windowSize.width || canvas.height !== windowSize.height) {
+			canvas.width = windowSize.width;
+			canvas.height = windowSize.height;
+		}
+		if (visualCanvas && (visualCanvas.width !== windowSize.width || visualCanvas.height !== windowSize.height)) {
+			visualCanvas.width = windowSize.width;
+			visualCanvas.height = windowSize.height;
 		}
 
-		// B. Canvas Size Sync (both debug and visual canvases)
-		if (canvas.width !== ws.width || canvas.height !== ws.height) {
-			canvas.width = ws.width;
-			canvas.height = ws.height;
-		}
-
-		const visualCanvas = visualCanvasRef.current;
-		if (visualCanvas && (visualCanvas.width !== ws.width || visualCanvas.height !== ws.height)) {
-			visualCanvas.width = ws.width;
-			visualCanvas.height = ws.height;
-		}
-
-		// C. Opacity Fade Logic (non-debug mode)
+		// Opacity Fade Logic
 		let finalOpacity = opacityRef.current;
 		if (!isDebugModeRef.current) {
 			const fadeStart = DEFAULT_ORBFIELD_CONFIG.fadeOutStart;
@@ -662,47 +243,25 @@ export function OrbField({
 				finalOpacity *= (1 - fadeFactor);
 			}
 		} else {
-			// In debug mode, always use full opacity
 			finalOpacity = 1;
 		}
 		canvas.style.opacity = finalOpacity.toString();
 
-		// Calculate target parallax offset based on scroll progress
-		// Desktop: vertical offset (move up as scroll increases)
-		// Mobile: horizontal offset (move left as scroll increases)
-		const scrollOffset = -(scrollProgressRef.current - SCROLL_OFFSET_REFERENCE) * SCROLL_OFFSET_PX_PER_UNIT;
-		const scrollTargetOffsetX = isMobileRef.current ? scrollOffset : 0;
-		const scrollTargetOffsetY = isMobileRef.current ? 0 : scrollOffset;
-
-		// Device tilt offset: move grid opposite to tilt direction
-		// tiltX/Y are 0-1 where 0.5 = center, so center them and scale
-		const tiltOffsetX = (deviceTiltXRef.current - 0.5) * 2 * DEVICE_TILT_OFFSET_PX;
-		const tiltOffsetY = (deviceTiltYRef.current - 0.5) * 2 * DEVICE_TILT_OFFSET_PX;
-
-		// Combine scroll and tilt offsets
-		const targetOffsetX = scrollTargetOffsetX + tiltOffsetX;
-		const targetOffsetY = scrollTargetOffsetY + tiltOffsetY;
-
-		// Smoothly interpolate toward target offset for buttery animation
-		const current = currentScrollOffsetRef.current;
-		current.x += (targetOffsetX - current.x) * SCROLL_OFFSET_SMOOTHING;
-		current.y += (targetOffsetY - current.y) * SCROLL_OFFSET_SMOOTHING;
-
-		// D. Render Debug Frame (grid lines, occupied cells, debug visuals)
+		// Render Debug Frame
 		GridRenderer.draw(
 			ctx,
-			ws,
+			windowSize,
 			vpc,
 			easedProgress,
-			revealConfigRef.current,
-			styleConfigRef.current,
-			isDebugModeRef.current && enableSpawnOnClickRef.current ? hoveredCellRef.current : null,
+			revealConfig,
+			styleConfig,
+			isDebugMode && enableSpawnOnClickRef.current ? hoveredCellRef.current : null,
 			grid,
 			currentLayerRef.current,
-			isDebugModeRef.current ? orbsRef.current : [],
-			undefined, // use default orbDebugConfig
-			current.x,
-			current.y,
+			isDebugMode ? orbsRef.current : [],
+			undefined,
+			currentScrollOffsetRef.current.x,
+			currentScrollOffsetRef.current.y,
 			showGridRef.current,
 			showCollisionAreaRef.current,
 			showAvoidanceAreaRef.current,
@@ -710,8 +269,7 @@ export function OrbField({
 			showTruePositionRef.current
 		);
 
-		// E. Render Visual Orbs (maroon orbs with glow and depth blur)
-		// Uses separate canvas layer (visualCanvasRef) to appear behind page content
+		// Render Visual Orbs
 		if (visualCanvas && easedProgress >= 1) {
 			const visualCtx = visualCanvas.getContext('2d');
 			if (visualCtx) {
@@ -719,88 +277,39 @@ export function OrbField({
 					const now = getEffectiveTime();
 					OrbVisualRenderer.draw(
 						visualCtx,
-						ws,
+						windowSize,
 						orbsRef.current,
 						grid.config.layers,
-						undefined, // use default config
-						now,       // frozen time for spawn/despawn animations when paused
-						current.x,
-						current.y
+						undefined,
+						now,
+						currentScrollOffsetRef.current.x,
+						currentScrollOffsetRef.current.y
 					);
 				} else {
-					// Clear the canvas when graphics are disabled
-					visualCtx.clearRect(0, 0, ws.width, ws.height);
+					visualCtx.clearRect(0, 0, windowSize.width, windowSize.height);
 				}
 			}
 		}
 
-		// F. Debug Panel Sync
-		if (isDebugModeRef.current && selectedOrbIdRef.current) {
+		// Debug Panel Sync
+		if (isDebugMode && selectedOrbIdRef.current) {
 			updateSelectedOrbData();
 		}
-	}, [orbsRef, selectedOrbIdRef, updateSelectedOrbData, syncOrbsState, spawnRandomOrbs, getEffectiveTime]);
+	}, [windowSize, orbsRef, selectedOrbIdRef, updateSelectedOrbData, getEffectiveTime, revealConfig, styleConfig, isDebugMode, currentScrollOffsetRef, showGridRef, showCollisionAreaRef, showAvoidanceAreaRef, showGraphicsRef, showArrowVectorRef, showTruePositionRef, isDebugModeRef, runPhysics, mousePosRef, isPageVisibleRef, burstTimeRef, pausePhysicsRef, disableCollisionsRef, disableAvoidanceRef, enableOrbSpawningRef, enableOrbDespawningRef, enableSpawnOnClickRef]);
+
+	// Animation Loop
+	useAnimationLoop({
+		visible,
+		gridConfig,
+		revealDuration: revealConfig.duration,
+		onLoop: runLoop,
+		onAnimationComplete,
+	});
 
 	// =========================================================================
-	// 4. Animation Loop Controller
+	// Orb Burst Trigger
 	// =========================================================================
 	useEffect(() => {
-		if (!visible || !gridConfig) return;
-
-		animatorRef.current = new GridAnimator(
-			revealConfig.duration,
-			(progress, eased) => {
-				const now = performance.now();
-				const dt = lastFrameTimeRef.current ? (now - lastFrameTimeRef.current) / 1000 : 0;
-				lastFrameTimeRef.current = now;
-
-				rollProgressRef.current = eased;
-				runLoop(eased, dt);
-			},
-			() => {
-				hasAnimatedRef.current = true;
-
-				// Notify parent that grid animation is complete
-				onAnimationComplete?.();
-
-				// Orb burst is now triggered by triggerBurst prop, not grid animation completion
-
-				// Continue with physics loop after reveal
-				const physicsLoop = () => {
-					if (!hasAnimatedRef.current) return;
-
-					const now = performance.now();
-					const dt = (now - lastFrameTimeRef.current) / 1000;
-					lastFrameTimeRef.current = now;
-
-					runLoop(1, dt);
-					loopIdRef.current = requestAnimationFrame(physicsLoop);
-				};
-				loopIdRef.current = requestAnimationFrame(physicsLoop);
-			}
-		);
-
-		animatorRef.current.start();
-
-		return () => {
-			animatorRef.current?.stop();
-			if (loopIdRef.current) cancelAnimationFrame(loopIdRef.current);
-			hasAnimatedRef.current = false;
-		};
-	}, [visible, gridConfig, runLoop, revealConfig.duration, onAnimationComplete]);
-
-	// =========================================================================
-	// 4b. Orb Burst Trigger (Controlled by Parent)
-	// =========================================================================
-	// Store triggerBurst in a ref so the physics loop can check it
-	const triggerBurstRef = useRef(triggerBurst);
-	useEffect(() => {
-		triggerBurstRef.current = triggerBurst;
-	}, [triggerBurst]);
-
-	// Check for burst trigger in the physics loop (runLoop) via a helper
-	// This ensures grid is ready since runLoop only runs after animation starts
-	useEffect(() => {
-		// Poll for burst trigger after grid is ready
 		if (!triggerBurst || hasBurstRef.current) return;
 
 		const checkAndBurst = () => {
@@ -808,43 +317,31 @@ export function OrbField({
 
 			const grid = gridRef.current;
 			const vpc = viewportCellsRef.current;
-			const ws = windowSizeRef.current;
 
-			if (grid && vpc && ws.width > 0 && hasAnimatedRef.current) {
+			if (grid && vpc && windowSize.width > 0) {
 				hasBurstRef.current = true;
-
-				// Calculate true screen center, accounting for scroll offset
-				// The scroll offset shifts the rendering, so we need to compensate
-				// by spawning orbs offset in the opposite direction
-				const currentOffset = currentScrollOffsetRef.current;
-				const centerX = (ws.width / 2) - currentOffset.x;
-				const centerY = (ws.height / 2) - currentOffset.y;
-
+				const centerX = (windowSize.width / 2) - currentScrollOffsetRef.current.x;
+				const centerY = (windowSize.height / 2) - currentScrollOffsetRef.current.y;
 				spawnOrbBurst(centerX, centerY, grid, vpc);
 				burstTimeRef.current = performance.now();
 			} else {
-				// Grid not ready yet, try again next frame
 				requestAnimationFrame(checkAndBurst);
 			}
 		};
 
 		checkAndBurst();
-	}, [triggerBurst, spawnOrbBurst]);
+	}, [triggerBurst, spawnOrbBurst, windowSize, currentScrollOffsetRef]);
 
 	// =========================================================================
-	// 5. Interaction Handlers
+	// Interaction Handlers
 	// =========================================================================
 	const handleMouseMove = useCallback((e: React.MouseEvent) => {
-		// Debug mode cell tracking only (mouse repulsion handled by global listener)
 		const vpc = viewportCellsRef.current;
 		const gc = gridConfig;
-		if (!vpc || !gc || rollProgressRef.current < 1 || !isDebugMode) return;
+		if (!vpc || !gc || !isDebugMode) return;
 
-		// Account for scroll offset when calculating cell position
-		const currentOffset = currentScrollOffsetRef.current;
-		const adjustedX = e.clientX - currentOffset.x;
-		const adjustedY = e.clientY - currentOffset.y;
-
+		const adjustedX = e.clientX - currentScrollOffsetRef.current.x;
+		const adjustedY = e.clientY - currentScrollOffsetRef.current.y;
 		const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
 		const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
 
@@ -857,38 +354,31 @@ export function OrbField({
 
 		hoveredCellRef.current = cellInfo;
 		setHoveredCell(cellInfo);
-	}, [gridConfig, isDebugMode]);
+	}, [gridConfig, isDebugMode, currentScrollOffsetRef]);
 
 	const handleClick = useCallback((e: React.MouseEvent) => {
 		const vpc = viewportCellsRef.current;
 		const grid = gridRef.current;
-		// Only allow click-to-create if debug mode AND enableSpawnOnClick are both true
-		// Use ref instead of context to work when context is not available
 		if (!grid || !vpc || !isDebugMode || !enableSpawnOnClickRef.current) return;
 
-		// Account for scroll offset when calculating click position
-		const currentOffset = currentScrollOffsetRef.current;
-		const adjustedX = e.clientX - currentOffset.x;
-		const adjustedY = e.clientY - currentOffset.y;
-
+		const adjustedX = e.clientX - currentScrollOffsetRef.current.x;
+		const adjustedY = e.clientY - currentScrollOffsetRef.current.y;
 		createOrb(adjustedX, adjustedY, currentLayerRef.current, orbSize, grid, vpc);
-	}, [orbSize, createOrb, isDebugMode]);
+	}, [orbSize, createOrb, isDebugMode, currentScrollOffsetRef, enableSpawnOnClickRef]);
 
 	const handleDeleteOrb = useCallback((id: string) => {
 		const grid = gridRef.current;
 		const vpc = viewportCellsRef.current;
 		if (!grid || !vpc) return;
-
 		deleteOrb(id, grid, vpc);
 	}, [deleteOrb]);
 
 	const handleMouseLeave = useCallback(() => {
-		// Debug mode only (mouse repulsion handled by global listener)
 		hoveredCellRef.current = null;
 		setHoveredCell(null);
 	}, []);
 
-	// Touch handlers for mobile (mirror mouse behavior)
+	// Touch handlers
 	const handleTouchStart = useCallback((e: React.TouchEvent) => {
 		const vpc = viewportCellsRef.current;
 		const grid = gridRef.current;
@@ -896,64 +386,51 @@ export function OrbField({
 
 		if (e.touches.length > 0) {
 			const touch = e.touches[0];
-			const currentOffset = currentScrollOffsetRef.current;
-			const adjustedX = touch.clientX - currentOffset.x;
-			const adjustedY = touch.clientY - currentOffset.y;
+			const adjustedX = touch.clientX - currentScrollOffsetRef.current.x;
+			const adjustedY = touch.clientY - currentScrollOffsetRef.current.y;
 
-			// Update hovered cell for touch
-			if (rollProgressRef.current >= 1) {
-				const gc = gridConfig;
-				if (!gc) return;
-
+			if (gridConfig) {
 				const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
 				const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
-
 				const cellInfo = {
 					x: cellX,
 					y: cellY,
-					worldX: gc.minXCm + cellX * vpc.cellSizeXCm,
-					worldY: gc.minYCm + cellY * vpc.cellSizeYCm,
+					worldX: gridConfig.minXCm + cellX * vpc.cellSizeXCm,
+					worldY: gridConfig.minYCm + cellY * vpc.cellSizeYCm,
 				};
-
 				hoveredCellRef.current = cellInfo;
 				setHoveredCell(cellInfo);
 			}
 
-			// Spawn orb on touch if enabled
 			if (enableSpawnOnClickRef.current) {
 				createOrb(adjustedX, adjustedY, currentLayerRef.current, orbSize, grid, vpc);
 			}
 		}
-	}, [orbSize, createOrb, isDebugMode, gridConfig]);
+	}, [orbSize, createOrb, isDebugMode, gridConfig, currentScrollOffsetRef, enableSpawnOnClickRef]);
 
 	const handleTouchMove = useCallback((e: React.TouchEvent) => {
 		const vpc = viewportCellsRef.current;
 		const gc = gridConfig;
-		if (!vpc || !gc || rollProgressRef.current < 1 || !isDebugMode) return;
+		if (!vpc || !gc || !isDebugMode) return;
 
 		if (e.touches.length > 0) {
 			const touch = e.touches[0];
-			const currentOffset = currentScrollOffsetRef.current;
-			const adjustedX = touch.clientX - currentOffset.x;
-			const adjustedY = touch.clientY - currentOffset.y;
-
+			const adjustedX = touch.clientX - currentScrollOffsetRef.current.x;
+			const adjustedY = touch.clientY - currentScrollOffsetRef.current.y;
 			const cellX = vpc.startCellX + Math.floor(adjustedX / vpc.cellSizeXPx);
 			const cellY = vpc.startCellY + Math.floor(adjustedY / vpc.cellSizeYPx);
-
 			const cellInfo = {
 				x: cellX,
 				y: cellY,
 				worldX: gc.minXCm + cellX * vpc.cellSizeXCm,
 				worldY: gc.minYCm + cellY * vpc.cellSizeYCm,
 			};
-
 			hoveredCellRef.current = cellInfo;
 			setHoveredCell(cellInfo);
 		}
-	}, [gridConfig, isDebugMode]);
+	}, [gridConfig, isDebugMode, currentScrollOffsetRef]);
 
 	const handleTouchEnd = useCallback(() => {
-		// Clear hovered cell on touch end
 		hoveredCellRef.current = null;
 		setHoveredCell(null);
 	}, []);
@@ -963,25 +440,9 @@ export function OrbField({
 	// =========================================================================
 	if (!visible || !isMounted) return null;
 
-	const { canvasZIndex, debugPanelZIndex } = DEFAULT_ORBFIELD_CONFIG;
-
-	// Visual orb canvas sits behind content but above page background (z-index: 0)
-	const visualCanvasZIndex = 0;
-
 	return (
 		<>
-			{/* Visual Orb Canvas - renders maroon orbs with glow and depth blur */}
-			<canvas
-				ref={visualCanvasRef}
-				style={{
-					position: 'fixed',
-					inset: 0,
-					pointerEvents: 'none',
-					zIndex: visualCanvasZIndex,
-				}}
-			/>
-
-			{/* Debug/Grid Canvas - renders grid lines and debug visuals */}
+			<canvas ref={visualCanvasRef} className={styles.visualCanvas} />
 			<canvas
 				ref={canvasRef}
 				onMouseMove={handleMouseMove}
@@ -991,16 +452,13 @@ export function OrbField({
 				onTouchMove={handleTouchMove}
 				onTouchEnd={handleTouchEnd}
 				onTouchCancel={handleTouchEnd}
+				className={styles.debugCanvas}
 				style={{
-					position: 'fixed',
-					inset: 0,
 					pointerEvents: isDebugMode ? 'auto' : 'none',
 					opacity,
-					zIndex: canvasZIndex,
 				}}
 			/>
 
-			{/* GlassDebugMenu - on mobile includes all debug info, on desktop just toggles */}
 			<GlassDebugMenu
 				orbs={orbs}
 				targetOrbCount={targetOrbCount}
@@ -1017,20 +475,8 @@ export function OrbField({
 				hoveredCell={hoveredCell}
 			/>
 
-			{/* Desktop-only: separate debug panels (hidden on mobile) */}
 			{isDebugMode && gridConfig && viewportCells && !isMobile && (
-				<div
-					style={{
-						position: 'fixed',
-						top: 16,
-						right: 16,
-						display: 'flex',
-						flexDirection: 'row-reverse',
-						alignItems: 'flex-start',
-						gap: 12,
-						zIndex: debugPanelZIndex,
-					}}
-				>
+				<div className={styles.debugPanelContainer}>
 					<OrbDebugPanel
 						orbs={orbs}
 						targetOrbCount={targetOrbCount}
@@ -1041,7 +487,6 @@ export function OrbField({
 						onDeleteOrb={handleDeleteOrb}
 						onSizeChange={setOrbSize}
 					/>
-
 					<GridDebugPanel
 						gridConfig={gridConfig}
 						viewportCells={viewportCells}

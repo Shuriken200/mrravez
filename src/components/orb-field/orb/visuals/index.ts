@@ -3,6 +3,9 @@
 // =============================================================================
 
 export { OrbVisualRenderer } from './OrbVisualRenderer';
+export { OrbGlowRenderer } from './OrbGlowRenderer';
+export { OrbGradientFactory } from './OrbGradientFactory';
+export { OrbAnimationTiming } from './OrbAnimationTiming';
 export {
 	type OrbVisualConfig,
 	DEFAULT_ORB_VISUAL_CONFIG,

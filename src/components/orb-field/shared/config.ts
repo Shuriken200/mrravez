@@ -112,3 +112,27 @@ export const DEFAULT_ORBFIELD_CONFIG: OrbFieldConfig = {
 	canvasZIndex: 2,      // Debug canvas above homepage content
 	debugPanelZIndex: 3,  // Debug panels above everything
 };
+
+/**
+ * Configuration for parallax offset behavior.
+ */
+export interface ParallaxConfig {
+	/** Pixels of grid/orb movement per viewport unit of scroll progress. */
+	scrollOffsetPxPerUnit: number;
+	/** Reference scroll progress where offset is zero (first resting point). */
+	scrollOffsetReference: number;
+	/** Smoothing factor for interpolating scroll offset (0-1, lower = smoother). */
+	scrollOffsetSmoothing: number;
+	/** Pixels of grid movement per unit of device tilt (0-1 range). */
+	deviceTiltOffsetPx: number;
+}
+
+/**
+ * Default configuration for parallax offset.
+ */
+export const DEFAULT_PARALLAX_CONFIG: ParallaxConfig = {
+	scrollOffsetPxPerUnit: 100,
+	scrollOffsetReference: 0.75,
+	scrollOffsetSmoothing: 0.08,
+	deviceTiltOffsetPx: 30,
+};

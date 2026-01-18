@@ -1,51 +1,21 @@
 "use client";
 
 // =============================================================================
-// useOrbManager - Custom hook for orb CRUD operations
+// useOrbManager - Orchestrates orb management sub-hooks
 // =============================================================================
 
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useRef, useState } from 'react';
 import { type Orb } from '../types';
-import { OrbPhysics } from '../core/OrbPhysics';
 import { SpatialGrid } from '../../grid/core/SpatialGrid';
 import { type ViewportCells } from '../../grid/types';
-import { DEFAULT_ORB_SPAWN_CONFIG, DEFAULT_ORB_BURST_CONFIG, DEFAULT_CONTINUOUS_SPAWN_CONFIG, DEFAULT_WANDER_CONFIG, type OrbSpawnConfig, type OrbBurstConfig, type ContinuousSpawnConfig } from '../config';
-import { DEFAULT_ORB_VISUAL_CONFIG } from '../visuals/OrbVisualConfig';
-import { CollisionSystem } from '../../collision/CollisionSystem';
+import { type OrbSpawnConfig, type OrbBurstConfig, type ContinuousSpawnConfig } from '../config';
+import { useOrbSelection } from './useOrbSelection';
+import { useOrbSpawning } from './useOrbSpawning';
+import { useOrbCRUD } from './useOrbCRUD';
 
 /**
- * Generates random animation durations for an orb.
- * Each orb gets unique spawn and despawn durations within the configured range.
+ * Options for the orb manager hook.
  */
-function generateAnimationDurations(): { spawnAnimDurationMs: number; despawnAnimDurationMs: number } {
-	const { spawnDurationMinMs, spawnDurationMaxMs, despawnDurationMinMs, despawnDurationMaxMs } = DEFAULT_ORB_VISUAL_CONFIG;
-	return {
-		spawnAnimDurationMs: spawnDurationMinMs + Math.random() * (spawnDurationMaxMs - spawnDurationMinMs),
-		despawnAnimDurationMs: despawnDurationMinMs + Math.random() * (despawnDurationMaxMs - despawnDurationMinMs),
-	};
-}
-
-/**
- * Generates random wander parameters for an orb.
- * Each orb gets unique wander characteristics for organic movement.
- */
-function generateWanderParams(): {
-	wanderStrength: number;
-	wanderPhase: number;
-	wanderSpeed: number;
-	wanderModulationSpeed: number;
-	wanderModulationPhase: number;
-} {
-	const { minWanderStrength, maxWanderStrength, minWanderSpeed, maxWanderSpeed, minModulationSpeed, maxModulationSpeed } = DEFAULT_WANDER_CONFIG;
-	return {
-		wanderStrength: minWanderStrength + Math.random() * (maxWanderStrength - minWanderStrength),
-		wanderPhase: Math.random() * Math.PI * 2, // Start at random phase
-		wanderSpeed: minWanderSpeed + Math.random() * (maxWanderSpeed - minWanderSpeed),
-		wanderModulationSpeed: minModulationSpeed + Math.random() * (maxModulationSpeed - minModulationSpeed),
-		wanderModulationPhase: Math.random() * Math.PI * 2,
-	};
-}
-
 interface UseOrbManagerOptions {
 	/** Configuration for orb spawning. */
 	spawnConfig?: Partial<OrbSpawnConfig>;
@@ -55,6 +25,9 @@ interface UseOrbManagerOptions {
 	continuousConfig?: Partial<ContinuousSpawnConfig>;
 }
 
+/**
+ * Return values from the orb manager hook.
+ */
 interface UseOrbManagerReturn {
 	/** Ref to the internal orbs array for high-performance loop access. */
 	orbsRef: React.MutableRefObject<Orb[]>;
@@ -83,387 +56,69 @@ interface UseOrbManagerReturn {
 }
 
 /**
- * Custom hook encapsulating all orb CRUD operations.
- * Separates orb management logic from the main controller component.
+ * Orchestrates all orb management operations by composing focused sub-hooks.
+ * 
+ * Single Responsibility: Composes sub-hooks into unified API.
  */
 export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManagerReturn {
-	const spawnConfig = useMemo(
-		() => ({ ...DEFAULT_ORB_SPAWN_CONFIG, ...options.spawnConfig }),
-		[options.spawnConfig]
-	);
-	const burstConfig = useMemo(
-		() => ({ ...DEFAULT_ORB_BURST_CONFIG, ...options.burstConfig }),
-		[options.burstConfig]
-	);
-	const continuousConfig = useMemo(
-		() => ({ ...DEFAULT_CONTINUOUS_SPAWN_CONFIG, ...options.continuousConfig }),
-		[options.continuousConfig]
-	);
-
+	// Shared state
 	const orbsRef = useRef<Orb[]>([]);
-	const selectedOrbIdRef = useRef<string | null>(null);
-
 	const [orbs, setOrbs] = useState<Orb[]>([]);
-	const [selectedOrbId, setSelectedOrbId] = useState<string | null>(null);
-	const [selectedOrbData, setSelectedOrbData] = useState<Orb | null>(null);
 
-	const createOrb = useCallback((
-		pxX: number,
-		pxY: number,
-		z: number,
-		size: number,
-		grid: SpatialGrid,
-		vpc: ViewportCells
-	) => {
-		// Validate spawn position - block if cell is occupied
-		if (!CollisionSystem.canSpawn(pxX, pxY, z, size, grid, vpc)) {
-			return;
-		}
+	// Sub-hooks
+	const selection = useOrbSelection();
+	const spawning = useOrbSpawning({
+		burstConfig: options.burstConfig,
+		continuousConfig: options.continuousConfig,
+	});
+	const crud = useOrbCRUD({
+		spawnConfig: options.spawnConfig,
+	});
 
-		// Random 3D direction - use spherical coordinates
-		const theta = Math.random() * Math.PI * 2; // XY plane angle
-		const phi = (Math.random() - 0.5) * Math.PI * 0.5; // Z angle (±45°)
-		const speedRange = spawnConfig.maxSpeed - spawnConfig.minSpeed;
-		const speed = spawnConfig.minSpeed + Math.random() * speedRange;
-
-		// Convert to velocity components
-		const cosTheta = Math.cos(theta);
-		const sinTheta = Math.sin(theta);
-		const cosPhi = Math.cos(phi);
-		const sinPhi = Math.sin(phi);
-
-		// Generate random animation durations and wander params for this orb
-		const animDurations = generateAnimationDurations();
-		const wanderParams = generateWanderParams();
-
-		const newOrb: Orb = {
-			id: crypto.randomUUID(),
-			pxX,
-			pxY,
-			z,
-			vx: cosTheta * cosPhi * speed,
-			vy: sinTheta * cosPhi * speed,
-			vz: sinPhi * speed * 0.05, // Scale vz since it's in layers/s not px/s
-			speed,
-			angle: theta,
-			size,
-			createdAt: performance.now(),
-			lifetimeMs: Infinity, // Manual spawns don't expire
-			spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-			despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-			...wanderParams,
+	// Wrapper functions that pass shared state to sub-hooks
+	const createOrb = (pxX: number, pxY: number, z: number, size: number, grid: SpatialGrid, vpc: ViewportCells) => {
+		const setSelectedOrbId = (id: string) => {
+			selection.selectOrb(id, orbsRef);
 		};
-
-		orbsRef.current.push(newOrb);
-		setOrbs([...orbsRef.current]);
-		setSelectedOrbId(newOrb.id);
-		selectedOrbIdRef.current = newOrb.id;
-
-		OrbPhysics.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-	}, [spawnConfig.minSpeed, spawnConfig.maxSpeed]);
-
-	const deleteOrb = useCallback((id: string, grid: SpatialGrid, vpc: ViewportCells) => {
-		const orbToDelete = orbsRef.current.find(o => o.id === id);
-		if (orbToDelete) {
-			OrbPhysics.clearOrbCircular(grid, orbToDelete, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			orbsRef.current = orbsRef.current.filter(o => o.id !== id);
-			setOrbs([...orbsRef.current]);
-
-			if (selectedOrbIdRef.current === id) {
-				setSelectedOrbId(null);
-				setSelectedOrbData(null);
-				selectedOrbIdRef.current = null;
-			}
-		}
-	}, []);
-
-	const selectOrb = useCallback((id: string | null) => {
-		setSelectedOrbId(id);
-		selectedOrbIdRef.current = id;
-		if (id) {
-			const found = orbsRef.current.find(o => o.id === id);
-			setSelectedOrbData(found ? { ...found } : null);
-		} else {
-			setSelectedOrbData(null);
-		}
-	}, []);
-
-	const updateSelectedOrbData = useCallback(() => {
-		if (selectedOrbIdRef.current) {
-			const found = orbsRef.current.find(o => o.id === selectedOrbIdRef.current);
-			if (found) {
-				setSelectedOrbData({ ...found });
-			}
-		}
-	}, []);
-
-/**
- * Spawns a burst of orbs from a center point with size-based distribution.
- * 
- * Implements:
- * - Weighted size selection (power law with exponent 1.3 for balanced distribution)
- * - Size-based layer assignment (larger orbs on back layers)
- * - Size-scaled velocity (smaller orbs faster, larger orbs slower)
- * - Collision-safe positioning with retries
- * - Outward velocity from center point
- * - Staggered spawn timing for organic appearance
- * - Position jitter for non-circular explosion pattern
- */
-	const spawnOrbBurst = useCallback((
-		centerX: number,
-		centerY: number,
-		grid: SpatialGrid,
-		vpc: ViewportCells
-	) => {
-		const { targetCount, maxSize, spawnRadiusPx, maxRetries, minSpeed, maxSpeed, minLifetimeMs, maxLifetimeMs, spawnDelayMaxMs, positionJitterPx } = burstConfig;
-		const totalLayers = grid.config.layers;
-		const newOrbs: Orb[] = [];
-
-	// Helper: Weighted random size selection (gentler distribution)
-	// Uses 1/(size^1.3) instead of 1/(size^2) for more larger orbs
-	const getRandomSize = (): number => {
-		// Build cumulative weights: 1/(1^1.3), 1/(2^1.3), 1/(3^1.3), etc.
-		const weights: number[] = [];
-		let sum = 0;
-		for (let size = 1; size <= maxSize; size++) {
-			const weight = 1 / Math.pow(size, 1.3);
-			sum += weight;
-			weights.push(sum);
-		}
-
-		// Random selection
-		const rand = Math.random() * sum;
-		for (let i = 0; i < weights.length; i++) {
-			if (rand <= weights[i]) {
-				return i + 1;
-			}
-		}
-		return 1; // Fallback
+		crud.createOrb(pxX, pxY, z, size, grid, vpc, orbsRef, setOrbs, setSelectedOrbId, selection.selectedOrbIdRef);
 	};
 
-		// Helper: Get random position near center with organic distribution
-		// Uses power distribution for distance to cluster more orbs near center
-		// Adds jitter for irregular explosion pattern (not a perfect circle)
-		const getRandomPosition = (): { x: number; y: number } => {
-			const angle = Math.random() * Math.PI * 2;
-			// Use sqrt for more center-weighted distribution (power = 0.5)
-			// This creates more density near center with gradual falloff
-			const normalizedDistance = Math.pow(Math.random(), 0.6);
-			const distance = normalizedDistance * spawnRadiusPx;
-			
-			// Calculate base position
-			const baseX = centerX + Math.cos(angle) * distance;
-			const baseY = centerY + Math.sin(angle) * distance;
-			
-			// Add position jitter for organic look
-			const jitterX = (Math.random() - 0.5) * 2 * positionJitterPx;
-			const jitterY = (Math.random() - 0.5) * 2 * positionJitterPx;
-			
-			return {
-				x: baseX + jitterX,
-				y: baseY + jitterY,
-			};
+	const deleteOrb = (id: string, grid: SpatialGrid, vpc: ViewportCells) => {
+		const setSelectedOrbIdWrapper = (id: string | null) => {
+			selection.selectOrb(id, orbsRef);
 		};
-
-		// Spawn each orb
-		for (let i = 0; i < targetCount; i++) {
-			const size = getRandomSize();
-			const layer = OrbPhysics.getPreferredLayer(size, maxSize, totalLayers);
-
-			let spawnPos: { x: number; y: number } | null = null;
-			let attempts = 0;
-
-			// Try to find a valid spawn position
-			while (attempts < maxRetries) {
-				const pos = getRandomPosition();
-				if (CollisionSystem.canSpawn(pos.x, pos.y, layer, size, grid, vpc)) {
-					spawnPos = pos;
-					break;
-				}
-				attempts++;
-			}
-
-			// Skip if no valid position found
-			if (!spawnPos) continue;
-
-			// Calculate outward velocity from center
-			const dx = spawnPos.x - centerX;
-			const dy = spawnPos.y - centerY;
-			const angle = Math.atan2(dy, dx);
-
-			// Enhanced size-based speed scaling with more variance
-			// Smaller orbs get higher velocities, larger orbs get lower velocities
-			// Using inverse square root for size scaling (consistent with physics)
-			const sizeSpeedFactor = 1 / Math.sqrt(size);
-			
-			// Add extra randomness: use a power distribution to favor higher speeds
-			// Math.pow(random, 0.6) gives more values toward 1.0 (higher speeds)
-			const speedRandomness = Math.pow(Math.random(), 0.6);
-			
-			const scaledMinSpeed = minSpeed * sizeSpeedFactor;
-			const scaledMaxSpeed = maxSpeed * sizeSpeedFactor;
-			const speed = scaledMinSpeed + speedRandomness * (scaledMaxSpeed - scaledMinSpeed);
-
-			// Random lifetime between min and max
-			const lifetimeMs = minLifetimeMs + Math.random() * (maxLifetimeMs - minLifetimeMs);
-
-			// Random spawn delay for staggered appearance (0 to spawnDelayMaxMs)
-			const spawnDelay = Math.random() * spawnDelayMaxMs;
-
-			// Generate random animation durations and wander params for this orb
-			const animDurations = generateAnimationDurations();
-			const wanderParams = generateWanderParams();
-
-			// Create orb with spawn delay applied to createdAt
-			// By subtracting the delay, orbs created "in the past" will be further along in their spawn animation
-			// This creates a staggered visual effect where orbs appear over spawnDelayMaxMs duration
-			const now = performance.now();
-			const newOrb: Orb = {
-				id: crypto.randomUUID(),
-				pxX: spawnPos.x,
-				pxY: spawnPos.y,
-				z: layer,
-				vx: Math.cos(angle) * speed,
-				vy: Math.sin(angle) * speed,
-				vz: 0, // Start with no Z velocity - layer attraction will handle depth movement
-				speed,
-				angle,
-				size,
-				createdAt: now - spawnDelay,
-				lifetimeMs,
-				spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-				despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-				...wanderParams,
-			};
-
-			// Mark on grid
-			OrbPhysics.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			newOrbs.push(newOrb);
-		}
-
-		// Add all new orbs to the array
-		orbsRef.current.push(...newOrbs);
-		setOrbs([...orbsRef.current]);
-	}, [burstConfig]);
-
-	const syncOrbsState = useCallback(() => {
-		setOrbs([...orbsRef.current]);
-	}, []);
-
-	/**
-	 * Spawns random orbs at random positions across the viewport.
-	 * Uses the same size distribution and lifetime as burst spawning.
-	 * Returns the number of orbs actually spawned.
-	 */
-	const spawnRandomOrbs = useCallback((
-		count: number,
-		screenWidth: number,
-		screenHeight: number,
-		grid: SpatialGrid,
-		vpc: ViewportCells
-	): number => {
-		const { maxSize, maxRetries, minSpeed, maxSpeed, minLifetimeMs, maxLifetimeMs } = burstConfig;
-		const { edgeMarginPx } = continuousConfig;
-		const totalLayers = grid.config.layers;
-		const newOrbs: Orb[] = [];
-
-	// Helper: Weighted random size selection (gentler distribution)
-	// Uses 1/(size^1.3) instead of 1/(size^2) for more larger orbs
-	const getRandomSize = (): number => {
-		const weights: number[] = [];
-		let sum = 0;
-		for (let size = 1; size <= maxSize; size++) {
-			const weight = 1 / Math.pow(size, 1.3);
-			sum += weight;
-			weights.push(sum);
-		}
-		const rand = Math.random() * sum;
-		for (let i = 0; i < weights.length; i++) {
-			if (rand <= weights[i]) {
-				return i + 1;
-			}
-		}
-		return 1;
+		const setSelectedOrbDataWrapper = (_data: Orb | null) => {
+			// This is handled internally by selectOrb
+		};
+		crud.deleteOrb(id, grid, vpc, orbsRef, setOrbs, setSelectedOrbIdWrapper, setSelectedOrbDataWrapper, selection.selectedOrbIdRef);
 	};
 
-		// Helper: Get random position within viewport (with margin from edges)
-		const getRandomPosition = (): { x: number; y: number } => {
-			return {
-				x: edgeMarginPx + Math.random() * (screenWidth - 2 * edgeMarginPx),
-				y: edgeMarginPx + Math.random() * (screenHeight - 2 * edgeMarginPx),
-			};
-		};
+	const spawnOrbBurst = (centerX: number, centerY: number, grid: SpatialGrid, vpc: ViewportCells) => {
+		spawning.spawnOrbBurst(centerX, centerY, grid, vpc, orbsRef, setOrbs);
+	};
 
-		for (let i = 0; i < count; i++) {
-			const size = getRandomSize();
-			const layer = OrbPhysics.getPreferredLayer(size, maxSize, totalLayers);
+	const spawnRandomOrbs = (count: number, screenWidth: number, screenHeight: number, grid: SpatialGrid, vpc: ViewportCells): number => {
+		return spawning.spawnRandomOrbs(count, screenWidth, screenHeight, grid, vpc, orbsRef, setOrbs);
+	};
 
-			let spawnPos: { x: number; y: number } | null = null;
-			let attempts = 0;
+	const selectOrb = (id: string | null) => {
+		selection.selectOrb(id, orbsRef);
+	};
 
-			while (attempts < maxRetries) {
-				const pos = getRandomPosition();
-				if (CollisionSystem.canSpawn(pos.x, pos.y, layer, size, grid, vpc)) {
-					spawnPos = pos;
-					break;
-				}
-				attempts++;
-			}
+	const updateSelectedOrbData = () => {
+		selection.updateSelectedOrbData(orbsRef);
+	};
 
-			if (!spawnPos) continue;
-
-			// Random direction for velocity
-			const angle = Math.random() * Math.PI * 2;
-
-			// Size-based speed scaling
-			const sizeSpeedFactor = 1 / Math.sqrt(size);
-			const scaledMinSpeed = minSpeed * sizeSpeedFactor;
-			const scaledMaxSpeed = maxSpeed * sizeSpeedFactor;
-			const speed = scaledMinSpeed + Math.random() * (scaledMaxSpeed - scaledMinSpeed);
-
-			// Random lifetime
-			const lifetimeMs = minLifetimeMs + Math.random() * (maxLifetimeMs - minLifetimeMs);
-
-			// Generate random animation durations and wander params for this orb
-			const animDurations = generateAnimationDurations();
-			const wanderParams = generateWanderParams();
-
-			const newOrb: Orb = {
-				id: crypto.randomUUID(),
-				pxX: spawnPos.x,
-				pxY: spawnPos.y,
-				z: layer,
-				vx: Math.cos(angle) * speed,
-				vy: Math.sin(angle) * speed,
-				vz: 0,
-				speed,
-				angle,
-				size,
-				createdAt: performance.now(),
-				lifetimeMs,
-				spawnAnimDurationMs: animDurations.spawnAnimDurationMs,
-				despawnAnimDurationMs: animDurations.despawnAnimDurationMs,
-				...wanderParams,
-			};
-
-			OrbPhysics.markOrbCircular(grid, newOrb, vpc.startCellX, vpc.startCellY, vpc.invCellSizeXPx, vpc.invCellSizeYPx);
-			newOrbs.push(newOrb);
-		}
-
-		if (newOrbs.length > 0) {
-			orbsRef.current.push(...newOrbs);
-			setOrbs([...orbsRef.current]); // Sync React state for UI
-		}
-
-		return newOrbs.length;
-	}, [burstConfig, continuousConfig]);
+	const syncOrbsState = () => {
+		crud.syncOrbsState(orbsRef, setOrbs);
+	};
 
 	return {
 		orbsRef,
 		orbs,
-		selectedOrbId,
-		selectedOrbData,
-		selectedOrbIdRef,
+		selectedOrbId: selection.selectedOrbId,
+		selectedOrbData: selection.selectedOrbData,
+		selectedOrbIdRef: selection.selectedOrbIdRef,
 		createOrb,
 		spawnOrbBurst,
 		spawnRandomOrbs,
@@ -473,4 +128,3 @@ export function useOrbManager(options: UseOrbManagerOptions = {}): UseOrbManager
 		syncOrbsState,
 	};
 }
-
